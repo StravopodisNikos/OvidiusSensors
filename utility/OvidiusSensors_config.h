@@ -1,0 +1,9 @@
+// GRIPPER SERVO
+#define OPEN_GRIPPER_POSITION 	0
+#define CLOSE_GRIPPER_POSITION	90
+#define SERVO_STEP              5
+// GRIPPER FSR
+#define _FSR_VCC_mV             5000
+#define _FSR_R_Ohm              10000
+#define _FSR_R_microOhm         1000000
+//#define _FSR_CALIBR_OFFSET      100
