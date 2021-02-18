@@ -9,25 +9,42 @@
 #include "Arduino.h"
 
 #include <Servo.h>
-//#include "HX711.h"
+#include "HX711.h"
 
 enum function_exec_state {success, failed};
-
+typedef unsigned char debug_error_type;
 
 namespace sensors
 {
-/*
-class force3axis:
+  typedef enum force_sensor_states {FORCE_OFF,FORCE_IDLE,FORCE_READS,FORCE_WRITES,FORCE_ERROR};
+
+class force3axis
 {
   private:
-    //HX711 &ptr2hx711;
-    const int _sensor_dout_pin = SENSOR_DOUT_PIN;
-    const int _sensor_sck_pin  = SENSOR_SCK_PIN;
-  public:
-    bool InitForceSensor();
+    byte _DOUT_PIN_AXIS;
+    byte _SCK_PIN_AXIS;
 
-}
-*/
+    unsigned long _SENSOR_TIMEOUT;
+    unsigned long _TIMEOUT_DELAY_MS;
+
+    bool _fn_state;
+
+    force_sensor_states _force_state;
+
+  public:
+
+    force3axis(byte DOUT_PIN,byte SCK_PIN);
+
+    bool setupForceSensor(HX711 * ptr2hx711, sensors::force_sensor_states * force_current_state, debug_error_type * debug_error);
+
+    bool calibrateForceSensor(HX711 * ptr2hx711, debug_error_type * debug_error, float * calibration_factor);
+
+    float measureForceNewtons(HX711 * ptr2hx711, byte times_measured, float * accel_tool_dir);
+
+    float measureRaw(HX711 * ptr2hx711, byte times_measured);
+
+    HX711 ForceSensorAxis;
+};
 
 /*
 class imu:
@@ -40,7 +57,7 @@ class imu:
 
 namespace tools
 {
-  typedef enum gripper_states {CLOSED,OPENED};
+  typedef enum gripper_states {GRIPPER_CLOSED,GRIPPER_OPENED};
 
   class gripper
   {
@@ -56,6 +73,10 @@ namespace tools
       unsigned long measureForce();
 
       int setupGripper();
+
+      void readGripperStateEEPROM(tools::gripper_states * gripper_current_state);
+
+      void writeGripperStateEEPROM(tools::gripper_states * gripper_current_state);
 
       Servo GripperServo;
       
