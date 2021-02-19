@@ -16,7 +16,7 @@ typedef unsigned char debug_error_type;
 
 namespace sensors
 {
-  typedef enum force_sensor_states {FORCE_OFF,FORCE_IDLE,FORCE_READS,FORCE_WRITES,FORCE_ERROR};
+  typedef enum force_sensor_states {FORCE_OFF,FORCE_IDLE,FORCE_READY,FORCE_READS,FORCE_WRITES,FORCE_ERROR};
 
 class force3axis
 {
@@ -31,17 +31,25 @@ class force3axis
 
     force_sensor_states _force_state;
 
+    void setIdleState(HX711 * ptr2hx711, sensors::force_sensor_states * force_current_state);
+
+    void setReadyState(HX711 * ptr2hx711, sensors::force_sensor_states * force_current_state);
+
   public:
 
     force3axis(byte DOUT_PIN,byte SCK_PIN);
 
-    bool setupForceSensor(HX711 * ptr2hx711, sensors::force_sensor_states * force_current_state, debug_error_type * debug_error);
+    bool setupForceSensor(HX711 *ptr2hx711, float manual_calibration_scale, sensors::force_sensor_states * force_current_state, debug_error_type * debug_error);
 
-    bool calibrateForceSensor(HX711 * ptr2hx711, debug_error_type * debug_error, float * calibration_factor);
+    bool getPermanentZeroOffset(HX711 * ptr2hx711, long * axis_offset);
 
-    float measureForceNewtons(HX711 * ptr2hx711, byte times_measured, float * accel_tool_dir);
+    bool measureForceKilos(HX711 * ptr2hx711, float * force_measurements_kgs, debug_error_type * debug_error);
 
-    float measureRaw(HX711 * ptr2hx711, byte times_measured);
+    bool getRawMeasurement(HX711 * ptr2hx711, float * raw_measurement, debug_error_type * debug_error);
+
+    void setIdleState(HX711 * ptr2hx711, sensors::force_sensor_states * force_current_state, debug_error_type * debug_error);
+
+    void setReadyState(HX711 * ptr2hx711, sensors::force_sensor_states * force_current_state, debug_error_type * debug_error);
 
     HX711 ForceSensorAxis;
 };

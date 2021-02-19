@@ -16,11 +16,12 @@
 
 // FORCE SENSOR
 #define num_FORCE_SENSORS       3
+#define TIMES_FOR_MEASURE       5
 #define DOUT_PIN_X              38
 #define SCK_PIN_X               39
-#define DOUT_PIN_Y              40
-#define SCK_PIN_Y               41
+#define DOUT_PIN_Y              32
+#define SCK_PIN_Y               33
 #define DOUT_PIN_Z              42
 #define SCK_PIN_Z               43
-#define SENSOR_TIMEOUT          1000
-#define TIMEOUT_DELAY_MS        50
+#define SENSOR_TIMEOUT          500
+#define TIMEOUT_DELAY_MS        5

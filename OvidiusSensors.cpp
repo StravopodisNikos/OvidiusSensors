@@ -18,17 +18,25 @@ force3axis::force3axis(byte DOUT_PIN,byte SCK_PIN): ForceSensorAxis()
     _TIMEOUT_DELAY_MS = TIMEOUT_DELAY_MS;
 }
 
-bool force3axis::setupForceSensor(HX711 *ptr2hx711, sensors::force_sensor_states * force_current_state, debug_error_type * debug_error)
+bool force3axis::setupForceSensor(HX711 *ptr2hx711, float manual_calibration_scale, sensors::force_sensor_states * force_current_state, debug_error_type * debug_error)
 {
+    /*
+     * Initializes pins - sets scale factor extracted manually from off-assembly
+     * installation and changes state OFF->READY
+     */
     ptr2hx711 = & ForceSensorAxis;
+
+    // initialize sensor pins
+    ptr2hx711->begin(_DOUT_PIN_AXIS, _SCK_PIN_AXIS);
 
     // check if force sensor is connected
     _fn_state = ptr2hx711->wait_ready_timeout(_SENSOR_TIMEOUT, _TIMEOUT_DELAY_MS);
     //_fn_state = true;
     if (_fn_state)
     {
-        ptr2hx711->begin(_DOUT_PIN_AXIS, _SCK_PIN_AXIS);
         (* debug_error) = NO_ERROR;
+        ptr2hx711->set_scale(manual_calibration_scale);       // sets scale to calibration factor given for each sensor
+        ptr2hx711->tare(TIMES_FOR_MEASURE);             // sets OFFSET 
     }
     else
     {
@@ -37,7 +45,7 @@ bool force3axis::setupForceSensor(HX711 *ptr2hx711, sensors::force_sensor_states
 
     if ((* debug_error) == NO_ERROR)
     {
-        _force_state = FORCE_IDLE;
+        _force_state = FORCE_READY;
 
         *force_current_state =  _force_state;
 
@@ -52,56 +60,119 @@ bool force3axis::setupForceSensor(HX711 *ptr2hx711, sensors::force_sensor_states
     }
 }
 
-bool force3axis::calibrateForceSensor(HX711 *ptr2hx711, debug_error_type * debug_error, float * calibration_factor)
+bool force3axis::getPermanentZeroOffset(HX711 * ptr2hx711, long * axis_offset)
 {
-    // UNDER DEVEL!!! 
-
+    /*
+     *  Just to be able to see the offset values calculated after assembly
+     */
     ptr2hx711 = & ForceSensorAxis;
 
-    // reset scale to 0
-    ptr2hx711->set_scale();
-
-    ptr2hx711->tare();
-
-    // start calibration
-    bool calibration_finished = true;
-
-    do
+    if ( _force_state == FORCE_READY )
     {
-                
-    } while (!calibration_finished);
-
-    return true;
+        // get the value measured
+        (*axis_offset) = ptr2hx711->get_offset();
+        return true;
+    }
+    else
+    {
+        return false;
+    }
 }
 
-float force3axis::measureForceNewtons(HX711 * ptr2hx711, byte times_measured, float * accel_tool_dir)
+bool force3axis::measureForceKilos(HX711 * ptr2hx711, float * force_measurements_kgs, debug_error_type * debug_error)
 {
-    // UNDER DEVEL!!! 
-
-    // must pre-specify the acceleration in tool space direction the force is measured!
+    // 
 
     ptr2hx711 = & ForceSensorAxis;
 
-    float measurement_avg;
+    if ( _force_state == FORCE_READY )
+    {
+        (* debug_error) = NO_ERROR;
 
-    float measurement_avg_nwt;
+        // takes measurement: in order to use get_units SCALE+OFFSET must be set
+        (* force_measurements_kgs) = ptr2hx711->get_units(TIMES_FOR_MEASURE);
 
-    measurement_avg = ptr2hx711->get_units(times_measured);
+        return true;
+    }
+    else
+    {
+        (* debug_error) = STATE_NOT_READY;
 
-    measurement_avg_nwt = measurement_avg * (*accel_tool_dir);
-
-    return measurement_avg_nwt;
+        return false;
+    }  
 }
 
-float force3axis::measureRaw(HX711 * ptr2hx711, byte times_measured)
+bool force3axis::getRawMeasurement(HX711 * ptr2hx711, float * raw_measurement, debug_error_type * debug_error)
+{
+    // 
+
+    ptr2hx711 = & ForceSensorAxis;
+
+    if ( _force_state == FORCE_READY )
+    {
+        (* debug_error) = NO_ERROR;
+
+        // takes rawvmeasurement
+        (* raw_measurement) = ptr2hx711->read_average(TIMES_FOR_MEASURE);
+
+        return true;
+    }
+    else
+    {
+        (* debug_error) = STATE_NOT_READY;
+
+        return false;
+    }  
+}
+
+void force3axis::setIdleState(HX711 * ptr2hx711, sensors::force_sensor_states * force_current_state, debug_error_type * debug_error)
 {
     ptr2hx711 = & ForceSensorAxis;
 
-    float measurement_avg;
+    if ( _force_state == FORCE_READY )
+    {
+        (* debug_error) = NO_ERROR;
 
-    measurement_avg = ptr2hx711->get_units(times_measured);
+        ptr2hx711->power_down();
 
-    return measurement_avg;
+        _force_state = FORCE_IDLE;
+
+        *force_current_state =  _force_state; 
+
+    }
+    else
+    {
+        (* debug_error) = STATE_NOT_READY;
+
+        _force_state == FORCE_ERROR;
+
+        *force_current_state =  _force_state;      
+    }
+}
+
+void force3axis::setReadyState(HX711 * ptr2hx711, sensors::force_sensor_states * force_current_state, debug_error_type * debug_error)
+{
+    ptr2hx711 = & ForceSensorAxis;
+
+    if ( _force_state == FORCE_IDLE )
+    {
+        (* debug_error) = NO_ERROR;
+
+        ptr2hx711->power_up();
+
+        _force_state = FORCE_READY;
+
+        *force_current_state =  _force_state; 
+
+    }
+    else
+    {
+        (* debug_error) = STATE_NOT_IDLE;
+
+        _force_state == FORCE_ERROR;
+
+        *force_current_state =  _force_state;      
+    }
 }
 
 // ============================================================================
