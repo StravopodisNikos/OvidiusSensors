@@ -5,11 +5,21 @@
 
 #ifndef OvidiusSensors_h
 #define OvidiusSensors_h
-
 #include "Arduino.h"
+/*
+ *  EXTERNAL LIBRARIES
+ */
 
-#include <Servo.h>
-#include "HX711.h"
+#include <Servo.h>                // GRIPPER LIBRARY
+#include "HX711.h"                // FORCE SENSOR LIBRARY
+#include "SensorFusion.h"         // IMU LIBRARIES - include sensor fusion+filter
+#include <Adafruit_FXAS21002C.h>  // include gyro
+#include <Adafruit_FXOS8700.h>    // include accel+mag
+#include <Adafruit_Sensor.h>
+#include "Adafruit_Sensor_Calibration.h"
+#include "Adafruit_Sensor_Calibration_EEPROM.h"
+#include <Adafruit_AHRS.h>
+#include <Wire.h>
 
 enum function_exec_state {success, failed};
 typedef unsigned char debug_error_type;
@@ -17,6 +27,25 @@ typedef unsigned char debug_error_type;
 namespace sensors
 {
   typedef enum force_sensor_states {FORCE_OFF,FORCE_IDLE,FORCE_READY,FORCE_READS,FORCE_WRITES,FORCE_ERROR};
+  typedef enum imu_sensor_states {IMU_READY,IMU_BUSY,IMU_ERROR};
+  typedef enum imu_filter {MAHONY_F,MADGWICK_F};
+
+  struct imu_packet
+  {
+    Adafruit_FXAS21002C *ptr2_fxas;   // is used to point to gyro object creted in ino file
+    Adafruit_FXOS8700   *ptr2_fxos;   // is used to point to accel/mag object creted in ino file
+    //SF                  *ptr2_filter; // removed 2/3/21 - will implement original adafruit class
+    Adafruit_Madgwick   *ptr2_filter;         // added 2/3/21 - original adafruit
+    Adafruit_Sensor_Calibration_EEPROM *cal;  // added 2/3/21 - original adafruit
+
+    sensors_event_t      *gyr_event, *acc_event, *mag_event;
+    //sensors_event_t      gyr_event, acc_event, mag_event;
+
+    float  roll_c;  // will store current angles (current = measured+filtered!)
+    float  pitch_c;
+    float  yaw_c; 
+  };
+  
 
 class force3axis
 {
@@ -35,7 +64,11 @@ class force3axis
 
     void setReadyState(HX711 * ptr2hx711, sensors::force_sensor_states * force_current_state);
 
+    void getCurrentState(HX711 * ptr2hx711, sensors::force_sensor_states * force_current_state, debug_error_type * debug_error);
+
   public:
+
+    //force_sensor_states _force_state;         // made public in order to be accessed by other classes
 
     force3axis(byte DOUT_PIN,byte SCK_PIN);
 
@@ -54,13 +87,44 @@ class force3axis
     HX711 ForceSensorAxis;
 };
 
-/*
-class imu:
+
+class imu9dof: public Adafruit_FXAS21002C, public Adafruit_FXOS8700, public SF, public Adafruit_Sensor_Calibration_EEPROM
 {
+  private:
+    imu_sensor_states _imu_state;
+
+    int32_t _GYR_ID;
+    int32_t _ACC_ID;
+    int32_t _MAG_ID;
+
+    gyroRange_t _GYR_RANGE;
+    fxos8700AccelRange_t _ACC_RANGE;
+
+    int _FILTER_UPDATE_RATE_MILLIS;
+
+    unsigned long _last_filter_update;
+
+  public:
+    imu9dof(gyroRange_t gyr_range, fxos8700AccelRange_t acc_range, int filter_millis_interval, int32_t gyr_id, int32_t acc_id, int32_t mag_id);
+
+    bool setupIMU(imu_packet * ptr2imu_packet, sensors::imu_sensor_states * imu_current_state, debug_error_type * debug_error);
+
+    bool setupIMU2(imu_packet * ptr2imu_packet, sensors::imu_sensor_states * imu_current_state, debug_error_type * debug_error);
+
+    bool measure_with_filter_IMU(imu_packet * ptr2imu_packet, sensors::imu_filter FILTER_SELECT, debug_error_type * debug_error);
+
+    bool measure_with_filter_IMU2(imu_packet * ptr2imu_packet, sensors::imu_filter FILTER_SELECT, debug_error_type * debug_error);
+
+    void getCurrentState(sensors::imu_sensor_states * imu_current_state, debug_error_type * debug_error);
+
+    void setCurrentState(sensors::imu_sensor_states * imu_current_state);
+
+    void getFilterInterval(int * filter_interval);
+
+    imu_packet IMU_PACKET;
+
 };
 
-#endif
-*/
 }
 
 namespace tools

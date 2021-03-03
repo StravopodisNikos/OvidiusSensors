@@ -16,12 +16,20 @@
 
 // FORCE SENSOR
 #define num_FORCE_SENSORS       3
-#define TIMES_FOR_MEASURE       5
-#define DOUT_PIN_X              38
-#define SCK_PIN_X               39
+#define TIMES_FOR_MEASURE       1
+#define DOUT_PIN_X              11 // 38
+#define SCK_PIN_X               12 // 39
 #define DOUT_PIN_Y              32
 #define SCK_PIN_Y               33
 #define DOUT_PIN_Z              42
 #define SCK_PIN_Z               43
 #define SENSOR_TIMEOUT          500
 #define TIMEOUT_DELAY_MS        5
+
+// IMU
+#define FILTER_UPDATE_RATE_HZ   250
+//#define PRINT_EVERY_N_UPDATES   100
+//#define FILTER_INTERVAL_MILLIS_LOW_FREQ     250     // @4Hz
+#define GYR_ID  1
+#define ACC_ID  2
+#define MAG_ID  3

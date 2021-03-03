@@ -81,16 +81,19 @@ bool force3axis::getPermanentZeroOffset(HX711 * ptr2hx711, long * axis_offset)
 
 bool force3axis::measureForceKilos(HX711 * ptr2hx711, float * force_measurements_kgs, debug_error_type * debug_error)
 {
-    // 
+    // modified to execute for all calls
 
     ptr2hx711 = & ForceSensorAxis;
+
+    //_force_state = FORCE_READY;
+    getCurrentState(ptr2hx711, &_force_state, debug_error);                     // seems redundant but enables calling fn outside class and reading current state
 
     if ( _force_state == FORCE_READY )
     {
         (* debug_error) = NO_ERROR;
 
         // takes measurement: in order to use get_units SCALE+OFFSET must be set
-        (* force_measurements_kgs) = ptr2hx711->get_units(TIMES_FOR_MEASURE);
+        (* force_measurements_kgs) = ptr2hx711->get_units(TIMES_FOR_MEASURE);      
 
         return true;
     }
@@ -175,6 +178,319 @@ void force3axis::setReadyState(HX711 * ptr2hx711, sensors::force_sensor_states *
     }
 }
 
+void force3axis::getCurrentState(HX711 * ptr2hx711, sensors::force_sensor_states * force_current_state, debug_error_type * debug_error)
+{
+    ptr2hx711 = & ForceSensorAxis;
+
+    *force_current_state = _force_state;
+    
+    switch (*force_current_state)
+    {
+        case FORCE_OFF:
+            * debug_error = NO_ERROR;
+            break;
+        case FORCE_IDLE:
+            * debug_error = NO_ERROR;
+            break;
+        case FORCE_READY:
+            * debug_error = NO_ERROR;
+            break;
+        case FORCE_READS:
+            * debug_error = NO_ERROR;
+            break;
+        case FORCE_WRITES:
+            * debug_error = NO_ERROR;
+            break;
+        case FORCE_ERROR:
+            * debug_error = NO_ERROR;
+            break;       
+        default:
+            * debug_error = UNKNOWN_STATE;
+            break;
+    }
+
+}
+// ============================================================================
+//  A D A F R U I T -- 9 D O F -- I M U -- W I T H -- F U S I O N
+// ============================================================================
+
+imu9dof::imu9dof(gyroRange_t gyr_range, fxos8700AccelRange_t acc_range, int filter_change_rate_hz, int32_t gyr_id, int32_t acc_id, int32_t mag_id): Adafruit_FXAS21002C(gyr_id), Adafruit_FXOS8700(acc_id, mag_id), SF(), Adafruit_Sensor_Calibration_EEPROM()
+{
+    _GYR_ID = gyr_id;
+    _ACC_ID = acc_id;
+    _MAG_ID = mag_id;
+
+    _GYR_RANGE = gyr_range;
+    _ACC_RANGE = acc_range;
+
+    _FILTER_UPDATE_RATE_MILLIS = filter_change_rate_hz;
+
+    _last_filter_update = 0;
+}
+
+bool imu9dof::setupIMU(imu_packet * ptr2imu_packet, sensors::imu_sensor_states * imu_current_state, debug_error_type * debug_error)
+{
+    // begins imu sensor and sets state to ready
+
+    // begin the gyroscope
+    if( ! (ptr2imu_packet->ptr2_fxas->begin(_GYR_RANGE)) )  
+    {
+        *debug_error = GYRO_NOT_FOUND;
+        while (1);        
+    }
+    // begin accel+mag
+    if( ! (ptr2imu_packet->ptr2_fxos->begin(_ACC_RANGE)) )  
+    {
+        *debug_error = ACCEL_MAG_NOT_FOUND;
+        while (1);        
+    }
+
+    if( !(*debug_error == GYRO_NOT_FOUND ) && !(*debug_error == ACCEL_MAG_NOT_FOUND ) )
+    {
+        *debug_error = NO_ERROR;
+
+        _imu_state = IMU_READY;
+        *imu_current_state = _imu_state;
+        return true;
+    }
+    else
+    {
+        _imu_state = IMU_ERROR;
+        *imu_current_state = _imu_state;
+        return false;
+    }
+}
+
+bool imu9dof::setupIMU2(imu_packet * ptr2imu_packet, sensors::imu_sensor_states * imu_current_state, debug_error_type * debug_error)
+{
+    // copid from setupIMU. works with main Adafruit libraries
+    // that implement calibration
+
+    // loads calibration data for sensor used
+    ptr2imu_packet->cal->loadCalibration();
+    ptr2imu_packet->cal->printSavedCalibration();
+
+    // init sensors
+    // begins imu sensor and sets state to ready
+    // begin the gyroscope
+    if( ! (ptr2imu_packet->ptr2_fxas->begin(_GYR_RANGE)) )  
+    {
+        *debug_error = GYRO_NOT_FOUND;
+        while (1);        
+    }
+    // begin accel+mag
+    if( ! (ptr2imu_packet->ptr2_fxos->begin(_ACC_RANGE)) )  
+    {
+        *debug_error = ACCEL_MAG_NOT_FOUND;
+        while (1);        
+    }
+
+    // begin the filter
+    ptr2imu_packet->ptr2_filter->begin(FILTER_UPDATE_RATE_HZ);
+
+    //Wire.setClock(400000);          // 400KHz as in calibrated orientation
+
+    if( !(*debug_error == GYRO_NOT_FOUND ) && !(*debug_error == ACCEL_MAG_NOT_FOUND ) )
+    {
+        *debug_error = NO_ERROR;
+
+        _imu_state = IMU_READY;
+        *imu_current_state = _imu_state;
+        return true;
+    }
+    else
+    {
+        _imu_state = IMU_ERROR;
+        *imu_current_state = _imu_state;
+        return false;
+    }
+}
+
+bool imu9dof::measure_with_filter_IMU(imu_packet * ptr2imu_packet, sensors::imu_filter FILTER_SELECT, debug_error_type * debug_error)
+{
+    // This function must always be called inside if statement
+    // for state-machine implementation
+
+    // measurement data variables
+    float ax,ay,az,gx,gy,gz,mx,my,mz;
+    float time_step;
+
+    imu9dof::getCurrentState(&_imu_state, debug_error);                     // seems redundant but enables calling fn outside class and reading current state
+
+    if ( _imu_state == IMU_READY )
+    {
+        (* debug_error) = NO_ERROR;
+
+        _imu_state = IMU_BUSY;
+        
+        // Get sensor event
+        ptr2imu_packet->ptr2_fxas->getEvent(ptr2imu_packet->gyr_event);
+        ptr2imu_packet->ptr2_fxos->getEvent(ptr2imu_packet->acc_event, ptr2imu_packet->mag_event );
+
+        ax = ptr2imu_packet->acc_event->acceleration.x;  // m/s2
+        ay = ptr2imu_packet->acc_event->acceleration.y;
+        az = ptr2imu_packet->acc_event->acceleration.z;
+        // units conversion: [m/s2] -> [g]
+        //ax = 0.101972f * ax;        // g
+        //ay = 0.101972f * ay;
+        //az = 0.101972f * az;
+
+        mx = ptr2imu_packet->mag_event->magnetic.x;      // uT
+        my = ptr2imu_packet->mag_event->magnetic.y;
+        mz = ptr2imu_packet->mag_event->magnetic.z;
+        // units conversion: [uT] -> [G]
+        //mx   = 100.0f * mx;         // G:flux
+        //my   = 100.0f * my;
+        //mz   = 100.0f * mz;
+        gx = ptr2imu_packet->gyr_event->gyro.x;          // r/s
+        gy = ptr2imu_packet->gyr_event->gyro.y;
+        gz = ptr2imu_packet->gyr_event->gyro.z;
+
+        // compute integration step for filter update
+        time_step = deltatUpdate();
+
+        // choose filter
+        switch (FILTER_SELECT)
+        {
+            case MAHONY_F:
+                MahonyUpdate(gx, gy, gz, ax, ay, az, time_step);
+                break;
+            case MADGWICK_F:
+                MadgwickUpdate(gx, gy, gz, ax, ay, az, mx, my, mz, time_step);
+                break;    
+            default:
+                *debug_error = INCORRECT_FILTER_SELECTION;
+                break;
+        }
+
+        // finally get angles
+        ptr2imu_packet->pitch_c = getPitch();
+        ptr2imu_packet->roll_c  = getRoll();
+        ptr2imu_packet->yaw_c  = getYaw();
+
+        _imu_state = IMU_READY;
+        return true;
+    }
+    else
+    {
+        (* debug_error) = STATE_NOT_READY;
+
+        return false;
+    } 
+    
+}
+
+bool imu9dof::measure_with_filter_IMU2(imu_packet * ptr2imu_packet, sensors::imu_filter FILTER_SELECT, debug_error_type * debug_error)
+{
+    // Copied from measure_with_filter_IMU. But implements only Madgwick
+    // with calibration data accessed from EEPROM!
+    // This function must always be called inside if statement
+    // for state-machine implementation
+
+    // measurement data variables
+    float ax,ay,az,gx,gy,gz,mx,my,mz;
+    float time_step;
+
+    imu9dof::getCurrentState(&_imu_state, debug_error);                     // seems redundant but enables calling fn outside class and reading current state
+
+    if ( _imu_state == IMU_READY )
+    {
+        (* debug_error) = NO_ERROR;
+
+        _imu_state = IMU_BUSY;
+        
+        // Get sensor event
+        ptr2imu_packet->ptr2_fxas->getEvent(ptr2imu_packet->gyr_event);
+        ptr2imu_packet->ptr2_fxos->getEvent(ptr2imu_packet->acc_event, ptr2imu_packet->mag_event );
+
+        ax = ptr2imu_packet->acc_event->acceleration.x;  // m/s2
+        ay = ptr2imu_packet->acc_event->acceleration.y;
+        az = ptr2imu_packet->acc_event->acceleration.z;
+        // calibrate accelerometer data -> TO DO! [2/3/21]
+
+        // units conversion: [m/s2] -> [g]
+        //ax = 0.101972f * ax;        // g
+        //ay = 0.101972f * ay;
+        //az = 0.101972f * az;
+
+        // calibrate magnetometer data -> ready
+        ptr2imu_packet->cal->Adafruit_Sensor_Calibration::calibrate(*(ptr2imu_packet->mag_event));
+
+        mx = ptr2imu_packet->mag_event->magnetic.x;      // uT
+        my = ptr2imu_packet->mag_event->magnetic.y;
+        mz = ptr2imu_packet->mag_event->magnetic.z;
+
+        // units conversion: [uT] -> [G]
+        //mx   = 100.0f * mx;         // G:flux
+        //my   = 100.0f * my;
+        //mz   = 100.0f * mz;
+
+        gx = ptr2imu_packet->gyr_event->gyro.x;          // r/s
+        gy = ptr2imu_packet->gyr_event->gyro.y;
+        gz = ptr2imu_packet->gyr_event->gyro.z;
+
+        // calibrate gyroscope data -> TO DO! [2/3/21]
+
+        gx = gx * SENSORS_RADS_TO_DPS;                   // r/s ->d/s for Adafruit_ahrs library   
+        gy = gy * SENSORS_RADS_TO_DPS;
+        gz = gz * SENSORS_RADS_TO_DPS;
+
+        // implement filter
+        ptr2imu_packet->ptr2_filter->update(gx, gy, gz, ax, ay, az, mx, my, mz);
+
+        // finally get angles
+        ptr2imu_packet->pitch_c = ptr2imu_packet->ptr2_filter->getPitch();
+        ptr2imu_packet->roll_c  = ptr2imu_packet->ptr2_filter->getRoll();
+        ptr2imu_packet->yaw_c  = ptr2imu_packet->ptr2_filter->getYaw();
+
+        _imu_state = IMU_READY;
+        return true;
+    }
+    else
+    {
+        (* debug_error) = STATE_NOT_READY;
+
+        return false;
+    } 
+    
+}
+
+void imu9dof::getCurrentState(sensors::imu_sensor_states * imu_current_state, debug_error_type * debug_error)
+{
+
+    *imu_current_state = _imu_state;
+    
+    switch (*imu_current_state)
+    {
+        case IMU_READY:
+            * debug_error = NO_ERROR;
+            break;
+        case IMU_BUSY:
+            * debug_error = NO_ERROR;
+            break;
+        case IMU_ERROR:
+            * debug_error = NO_ERROR;
+            break;      
+        default:
+            * debug_error = UNKNOWN_STATE;
+            break;
+    }
+
+}
+
+void imu9dof::setCurrentState(sensors::imu_sensor_states * imu_current_state)
+{
+    _imu_state = *imu_current_state;
+}
+
+void imu9dof::getFilterInterval(int * filter_interval)
+{
+    *filter_interval = _FILTER_UPDATE_RATE_MILLIS;
+}
+
+
+// ============================================================================
+//  C U S T O M -- G R I P P E R
 // ============================================================================
 
 using namespace tools;
