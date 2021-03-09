@@ -20,12 +20,16 @@
 #include "Adafruit_Sensor_Calibration_EEPROM.h"
 #include <Adafruit_AHRS.h>
 #include <Wire.h>
+#include <SPI.h>
+#include <SD.h> 
+#include <TimeLib.h>
 
 enum function_exec_state {success, failed};
 typedef unsigned char debug_error_type;
 
 namespace sensors
 {
+  typedef enum sensors_list {FORCE_3AXIS, IMU_9AXIS, CURRENT_JOINT1};
   typedef enum force_sensor_states {FORCE_OFF,FORCE_IDLE,FORCE_READY,FORCE_READS,FORCE_WRITES,FORCE_ERROR};
   typedef enum imu_sensor_states {IMU_READY,IMU_BUSY,IMU_ERROR};
   typedef enum imu_filter {MAHONY_F,MADGWICK_F};
@@ -166,6 +170,30 @@ namespace tools
 
   };
 
+  class dataLogger: public String, public SDClass
+  {
+    private:
+      /* data */
+
+    public:
+      dataLogger();
+      ~dataLogger();
+      
+      bool createSessionDir();
+
+      bool createSensorDir(sensors::sensors_list sensor_choice, String *session_dir, String &final_sensor_dir);
+
+      void setupDataLogger(debug_error_type * debug_error);
+
+      void openFile(File *ptr2file, char *filename , byte OPERATION,  debug_error_type * debug_error);
+
+      void closeFile(File *ptr2file);
+
+      template <class T>
+      void writeData(T data2write, unsigned long timestamp, unsigned long &data_cnt, File *ptr2file, debug_error_type * debug_error);
+
+  };
+  
 }
 
 #endif

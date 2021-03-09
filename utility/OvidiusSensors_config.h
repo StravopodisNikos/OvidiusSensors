@@ -33,3 +33,7 @@
 #define GYR_ID  1
 #define ACC_ID  2
 #define MAG_ID  3
+
+// SD card read/write
+#define SD_CARD_CS_PIN          4
+#define SD_INIT_TIMEOUT_MILLIS  1000

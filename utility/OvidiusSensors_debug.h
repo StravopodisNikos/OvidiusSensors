@@ -6,3 +6,7 @@
 #define GYRO_NOT_FOUND      5
 #define ACCEL_MAG_NOT_FOUND 6
 #define INCORRECT_FILTER_SELECTION 7
+#define SD_INIT_FAILED      8
+#define OPEN_FILE_FAILED    9
+#define DATA_WRITE_FAILED   10
+#define DATA_READ_FAILED    11

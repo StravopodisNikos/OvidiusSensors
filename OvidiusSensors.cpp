@@ -488,13 +488,10 @@ void imu9dof::getFilterInterval(int * filter_interval)
     *filter_interval = _FILTER_UPDATE_RATE_MILLIS;
 }
 
-
+using namespace tools;
 // ============================================================================
 //  C U S T O M -- G R I P P E R
 // ============================================================================
-
-using namespace tools;
-
 gripper::gripper(uint8_t servo_pwm_pin, uint8_t fsr_analog_input_pin): GripperServo()
 {
     _SERVO_PWM_PIN = servo_pwm_pin;
@@ -654,4 +651,140 @@ void gripper::writeGripperStateEEPROM(tools::gripper_states * gripper_current_st
      */
 
    EEPROM.put(CS_GRIPPER_EEPROM_ADDR, *gripper_current_state);
+}
+
+// ============================================================================
+//  D A T A -- L O G G E R
+// ============================================================================
+dataLogger::dataLogger();
+
+bool dataLogger::createSessionDir()
+{
+    // this is called at startup-sets the char name of directory
+    // NAME = "TIME_DATE" = "MIN_HR_DAY_MONTH_YEAR"
+    // Assumes that time has been set successfully during setup!
+    int MIN,HR,DAY,MONTH,YEAR;
+    String MIN_S,HR_S,DAY_S,MONTH_S,YEAR_S;
+
+    String BUILT_DIR_NAME = String();
+    String sting_spacer   = String("_");
+    // first receive int of MIN-HR-DAY-MONTH-YEAR
+    MIN   = minute();   MIN_S   = String(MIN,DEC);
+    HR    = hour();     HR_S    = String(HR,DEC);
+    DAY   = day();      DAY_S   = String(DAY,DEC);
+    MONTH = month();    MONTH_S = String(MONTH,DEC);
+    YEAR  = year();     YEAR_S  = String(YEAR,DEC);
+
+    // build the dir name "TIME_DATE" described above from ints
+    BUILT_DIR_NAME = MIN_S + sting_spacer + HR_S + sting_spacer + DAY_S + sting_spacer + MONTH_S + sting_spacer + YEAR_S;
+
+    // create the dir
+    if(SD.mkdir(BUILT_DIR_NAME))
+    {
+        return true;
+    }
+    else
+    {
+        return false;
+    }
+}
+
+bool dataLogger::createSensorDir(sensors::sensors_list sensor_choice, String *session_dir, String &final_sensor_dir)
+{
+    // will create a sensor folder inside the session folder provided
+    String expl_sensor_dir  = String();
+    String folder_splitter  = String("/");
+
+    switch (sensor_choice)
+    {
+        case FORCE_3AXIS:
+            expl_sensor_dir = String("FORCE");
+            break;
+        case IMU_9AXIS:
+            expl_sensor_dir = String("IMU");
+            break;
+        case CURRENT_JOINT1:
+            expl_sensor_dir = String("CURRENT");
+            break;    
+        default:
+            return false;
+            break;
+    }
+
+    final_sensor_dir = *session_dir + folder_splitter + expl_sensor_dir;
+
+    if(SD.mkdir(final_sensor_dir))
+    {
+        return true;
+    }
+    else
+    {
+        return false;
+    }
+}
+
+void dataLogger::setupDataLogger(debug_error_type * debug_error)
+{
+   bool initialized_sd = false;
+   int total_time;
+   unsigned long started_sd_initialization = millis();
+   do
+   {
+        initialized_sd = SD.begin(SD_CARD_CS_PIN);
+
+        total_time = millis() - started_sd_initialization;
+   } while( (!initialized_sd) && (total_time < SD_INIT_TIMEOUT_MILLIS) );
+
+    if (!initialized_sd)
+    {
+        *debug_error = SD_INIT_FAILED;
+    }
+    
+    return;
+}
+
+void dataLogger::openFile(File *ptr2file, char *filename , byte OPERATION,  debug_error_type * debug_error)
+{
+    // File must open at start of corresponding ino file!
+    // OPERATION -> FILE_READ OR FILE_WRITE
+
+    *ptr2file = SD.open(filename, OPERATION);
+
+    if (*ptr2file)
+    {
+        *debug_error = NO_ERROR;
+    }
+    else
+    {
+        *debug_error = OPEN_FILE_FAILED;
+    }
+    
+    return;
+}
+
+void dataLogger::closeFile(File *ptr2file)
+{
+    // File must close at start of corresponding ino file!
+    ptr2file->close();
+}
+
+template <class T>
+void dataLogger::writeData(T data2write, unsigned long timestamp, unsigned long &data_cnt, File *ptr2file, debug_error_type * debug_error)
+{
+    // the file object must be opened before write! file_state was given a value
+    // of NO_ERROR OR OPEN_FILE_FAILED. This function is executed only if NO_ERROR
+    // was received!
+    
+     if (*ptr2file)
+     {
+         // CNT, TIMESTAMP_MILLIS, DATA_VAL
+        ptr2file->print(data_cnt,DEC); ptr2file->print(" , "); ptr2file->print(timestamp,DEC); ptr2file->print(" , "); ptr2file->println(data2write,DEC);
+        *debug_error = NO_ERROR;
+     }
+     else
+     {
+        *debug_error = DATA_WRITE_FAILED;
+     }
+      
+    return;
 }
