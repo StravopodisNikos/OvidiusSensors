@@ -656,15 +656,19 @@ void gripper::writeGripperStateEEPROM(tools::gripper_states * gripper_current_st
 // ============================================================================
 //  D A T A -- L O G G E R
 // ============================================================================
-dataLogger::dataLogger();
+dataLogger::dataLogger(): String(), SDClass()
+{
+    pinMode(SD_CARD_CS_PIN,OUTPUT);
+}
 
-bool dataLogger::createSessionDir()
+bool dataLogger::createSessionDir(String &session_dir)
 {
     // this is called at startup-sets the char name of directory
     // NAME = "TIME_DATE" = "MIN_HR_DAY_MONTH_YEAR"
     // Assumes that time has been set successfully during setup!
     int MIN,HR,DAY,MONTH,YEAR;
     String MIN_S,HR_S,DAY_S,MONTH_S,YEAR_S;
+    String folder_splitter  = String("/");
 
     String BUILT_DIR_NAME = String();
     String sting_spacer   = String("_");
@@ -676,20 +680,23 @@ bool dataLogger::createSessionDir()
     YEAR  = year();     YEAR_S  = String(YEAR,DEC);
 
     // build the dir name "TIME_DATE" described above from ints
-    BUILT_DIR_NAME = MIN_S + sting_spacer + HR_S + sting_spacer + DAY_S + sting_spacer + MONTH_S + sting_spacer + YEAR_S;
+    BUILT_DIR_NAME = MIN_S + sting_spacer + HR_S + sting_spacer + DAY_S;// + sting_spacer + MONTH_S + sting_spacer + YEAR_S;
 
     // create the dir
     if(SD.mkdir(BUILT_DIR_NAME))
     {
+        //Serial.println("SUCCESS");
+        session_dir = BUILT_DIR_NAME;
         return true;
     }
     else
     {
+        //Serial.println("FAILED");
         return false;
     }
 }
 
-bool dataLogger::createSensorDir(sensors::sensors_list sensor_choice, String *session_dir, String &final_sensor_dir)
+bool dataLogger::createSensorDir(sensors::sensors_list sensor_choice, String session_dir, String &final_sensor_dir)
 {
     // will create a sensor folder inside the session folder provided
     String expl_sensor_dir  = String();
@@ -711,7 +718,7 @@ bool dataLogger::createSensorDir(sensors::sensors_list sensor_choice, String *se
             break;
     }
 
-    final_sensor_dir = *session_dir + folder_splitter + expl_sensor_dir;
+    final_sensor_dir = session_dir + folder_splitter + expl_sensor_dir;
 
     if(SD.mkdir(final_sensor_dir))
     {
@@ -723,7 +730,7 @@ bool dataLogger::createSensorDir(sensors::sensors_list sensor_choice, String *se
     }
 }
 
-void dataLogger::setupDataLogger(debug_error_type * debug_error)
+void dataLogger::setupDataLogger(File *ptr2root, debug_error_type * debug_error)
 {
    bool initialized_sd = false;
    int total_time;
@@ -731,7 +738,12 @@ void dataLogger::setupDataLogger(debug_error_type * debug_error)
    do
    {
         initialized_sd = SD.begin(SD_CARD_CS_PIN);
-
+        if (!initialized_sd)
+        {
+           //Serial.println("den anoigei");
+           *debug_error = SD_INIT_FAILED;
+        }
+        
         total_time = millis() - started_sd_initialization;
    } while( (!initialized_sd) && (total_time < SD_INIT_TIMEOUT_MILLIS) );
 
@@ -739,19 +751,29 @@ void dataLogger::setupDataLogger(debug_error_type * debug_error)
     {
         *debug_error = SD_INIT_FAILED;
     }
+
+    if (initialized_sd)
+    {
+        *ptr2root = SD.open("/");
+        //Serial.println("OPENED ROOT /");
+        *debug_error = NO_ERROR;
+    }
     
     return;
 }
 
-void dataLogger::openFile(File *ptr2file, char *filename , byte OPERATION,  debug_error_type * debug_error)
+void dataLogger::openFile(File *ptr2file, String & filename , byte OPERATION,  debug_error_type * debug_error)
 {
-    // File must open at start of corresponding ino file!
+    // File must open inside ino file!
     // OPERATION -> FILE_READ OR FILE_WRITE
+    File OpenedFile;
 
-    *ptr2file = SD.open(filename, OPERATION);
+    OpenedFile = SD.open(filename, OPERATION);
+    //OpenedFile = SD.open("GAMW.log", OPERATION);
 
-    if (*ptr2file)
+    if (OpenedFile)
     {
+        *ptr2file = OpenedFile;
         *debug_error = NO_ERROR;
     }
     else
@@ -768,8 +790,9 @@ void dataLogger::closeFile(File *ptr2file)
     ptr2file->close();
 }
 
-template <class T>
-void dataLogger::writeData(T data2write, unsigned long timestamp, unsigned long &data_cnt, File *ptr2file, debug_error_type * debug_error)
+//template <class T>
+//void dataLogger::writeData(T data2write, unsigned long timestamp, unsigned long data_cnt, File *ptr2file, debug_error_type * debug_error)
+void dataLogger::writeData(double data2write, unsigned long timestamp, unsigned long data_cnt, File *ptr2file, debug_error_type * debug_error)
 {
     // the file object must be opened before write! file_state was given a value
     // of NO_ERROR OR OPEN_FILE_FAILED. This function is executed only if NO_ERROR
@@ -780,6 +803,7 @@ void dataLogger::writeData(T data2write, unsigned long timestamp, unsigned long 
          // CNT, TIMESTAMP_MILLIS, DATA_VAL
         ptr2file->print(data_cnt,DEC); ptr2file->print(" , "); ptr2file->print(timestamp,DEC); ptr2file->print(" , "); ptr2file->println(data2write,DEC);
         *debug_error = NO_ERROR;
+
      }
      else
      {

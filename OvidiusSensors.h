@@ -177,20 +177,21 @@ namespace tools
 
     public:
       dataLogger();
-      ~dataLogger();
+      //~dataLogger();
       
-      bool createSessionDir();
+      bool createSessionDir(String &session_dir);
 
-      bool createSensorDir(sensors::sensors_list sensor_choice, String *session_dir, String &final_sensor_dir);
+      bool createSensorDir(sensors::sensors_list sensor_choice, String session_dir, String &final_sensor_dir);
 
-      void setupDataLogger(debug_error_type * debug_error);
+      void setupDataLogger(File *ptr2root, debug_error_type * debug_error);
 
-      void openFile(File *ptr2file, char *filename , byte OPERATION,  debug_error_type * debug_error);
+      void openFile(File *ptr2file, String & filename , byte OPERATION,  debug_error_type * debug_error);
 
       void closeFile(File *ptr2file);
 
-      template <class T>
-      void writeData(T data2write, unsigned long timestamp, unsigned long &data_cnt, File *ptr2file, debug_error_type * debug_error);
+      //template <class T>
+      //void writeData(T data2write, unsigned long timestamp, unsigned long data_cnt, File *ptr2file, debug_error_type * debug_error);
+      void writeData(double data2write, unsigned long timestamp, unsigned long data_cnt, File *ptr2file, debug_error_type * debug_error);
 
   };
   

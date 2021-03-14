@@ -36,4 +36,13 @@
 
 // SD card read/write
 #define SD_CARD_CS_PIN          4
-#define SD_INIT_TIMEOUT_MILLIS  1000
+#define SD_INIT_TIMEOUT_MILLIS  10000
+#define TIME_HEADER  "T"   
+#define TIME_REQUEST  7     
+
+// Log files ID
+#define POS_LOG_ID      0
+#define VEL_LOG_ID      1
+#define FOR_LOG_ID      2
+#define CUR_LOG_ID      3
+#define IMU_LOG_ID      4
