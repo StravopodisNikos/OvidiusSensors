@@ -29,7 +29,7 @@ typedef unsigned char debug_error_type;
 
 namespace sensors
 {
-  typedef enum sensors_list {FORCE_3AXIS, IMU_9AXIS, CURRENT_JOINT1};
+  typedef enum sensors_list {FORCE_3AXIS, IMU_9AXIS, CURRENT_JOINT1, JOINT_POS, JOINT_VEL};
   typedef enum force_sensor_states {FORCE_OFF,FORCE_IDLE,FORCE_READY,FORCE_READS,FORCE_WRITES,FORCE_ERROR};
   typedef enum imu_sensor_states {IMU_READY,IMU_BUSY,IMU_ERROR};
   typedef enum imu_filter {MAHONY_F,MADGWICK_F};
@@ -178,14 +178,13 @@ namespace tools
     public:
       dataLogger();
       //~dataLogger();
+      void setupDataLogger(File *ptr2root, debug_error_type * debug_error);
       
       bool createSessionDir(String &session_dir);
 
       bool createSensorDir(sensors::sensors_list sensor_choice, String session_dir, String &final_sensor_dir);
 
-      void setupDataLogger(File *ptr2root, debug_error_type * debug_error);
-
-      void openFile(File *ptr2file, String & filename , byte OPERATION,  debug_error_type * debug_error);
+      void openFile(File *ptr2file, String final_sensor_dir, String filename , byte OPERATION,  debug_error_type * debug_error);
 
       void closeFile(File *ptr2file);
 

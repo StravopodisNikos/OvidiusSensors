@@ -10,3 +10,4 @@
 #define OPEN_FILE_FAILED    9
 #define DATA_WRITE_FAILED   10
 #define DATA_READ_FAILED    11
+#define SD_FILE_EXISTS      12

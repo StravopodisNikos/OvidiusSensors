@@ -2,7 +2,9 @@
 #include <EEPROM.h>
 #include <Servo.h>
 #include "HX711.h"
-
+#include <SPI.h>
+#include <SD.h> 
+#include <TimeLib.h>
 #include <OvidiusSensors.h>
 #include <utility/OvidiusSensors_config.h>
 #include <utility/OvidiusSensors_debug.h>
@@ -661,6 +663,40 @@ dataLogger::dataLogger(): String(), SDClass()
     pinMode(SD_CARD_CS_PIN,OUTPUT);
 }
 
+void dataLogger::setupDataLogger(File *ptr2root, debug_error_type * debug_error)
+{
+    Serial.println("STARTED setupDataLogger");
+
+   bool initialized_sd = false;
+   int total_time;
+   unsigned long started_sd_initialization = millis();
+   do
+   {
+        initialized_sd = SD.begin(SD_CARD_CS_PIN);
+        if (!initialized_sd)
+        {
+           Serial.println("den anoigei");
+           *debug_error = SD_INIT_FAILED;
+        }
+        
+        total_time = millis() - started_sd_initialization;
+   } while( (!initialized_sd) && (total_time < SD_INIT_TIMEOUT_MILLIS) );
+
+    if (!initialized_sd)
+    {
+        *debug_error = SD_INIT_FAILED;
+    }
+
+    if (initialized_sd)
+    {
+        *ptr2root = SD.open("/");
+        //Serial.println("OPENED ROOT /");
+        *debug_error = NO_ERROR;
+    }
+    
+    return;
+}
+
 bool dataLogger::createSessionDir(String &session_dir)
 {
     // this is called at startup-sets the char name of directory
@@ -680,7 +716,7 @@ bool dataLogger::createSessionDir(String &session_dir)
     YEAR  = year();     YEAR_S  = String(YEAR,DEC);
 
     // build the dir name "TIME_DATE" described above from ints
-    BUILT_DIR_NAME = MIN_S + sting_spacer + HR_S + sting_spacer + DAY_S;// + sting_spacer + MONTH_S + sting_spacer + YEAR_S;
+    BUILT_DIR_NAME = MIN_S + HR_S + DAY_S + sting_spacer + MONTH_S;// + sting_spacer + YEAR_S;
 
     // create the dir
     if(SD.mkdir(BUILT_DIR_NAME))
@@ -730,51 +766,32 @@ bool dataLogger::createSensorDir(sensors::sensors_list sensor_choice, String ses
     }
 }
 
-void dataLogger::setupDataLogger(File *ptr2root, debug_error_type * debug_error)
+void dataLogger::openFile(File *ptr2file, String final_sensor_dir,  String filename , byte OPERATION,  debug_error_type * debug_error)
 {
-   bool initialized_sd = false;
-   int total_time;
-   unsigned long started_sd_initialization = millis();
-   do
-   {
-        initialized_sd = SD.begin(SD_CARD_CS_PIN);
-        if (!initialized_sd)
-        {
-           //Serial.println("den anoigei");
-           *debug_error = SD_INIT_FAILED;
-        }
-        
-        total_time = millis() - started_sd_initialization;
-   } while( (!initialized_sd) && (total_time < SD_INIT_TIMEOUT_MILLIS) );
+    // MADNESS!! THIS FUNCTION IS EXECUTED IN INO FILE
+    // WITH COMMAND: SD.open("global_file_path", FILE_WRITE/READ);
 
-    if (!initialized_sd)
+    File OpenedFile;
+    String folder_splitter  = String("/");
+
+    filename = final_sensor_dir + folder_splitter + filename;
+
+    if (SD.exists(filename))
     {
-        *debug_error = SD_INIT_FAILED;
+        *debug_error = SD_FILE_EXISTS;
     }
-
-    if (initialized_sd)
+    else
     {
-        *ptr2root = SD.open("/");
-        //Serial.println("OPENED ROOT /");
         *debug_error = NO_ERROR;
     }
     
-    return;
-}
-
-void dataLogger::openFile(File *ptr2file, String & filename , byte OPERATION,  debug_error_type * debug_error)
-{
-    // File must open inside ino file!
-    // OPERATION -> FILE_READ OR FILE_WRITE
-    File OpenedFile;
-
-    OpenedFile = SD.open(filename, OPERATION);
     //OpenedFile = SD.open("GAMW.log", OPERATION);
 
-    if (OpenedFile)
+    if (*debug_error == NO_ERROR)
     {
+        OpenedFile = SD.open(filename, OPERATION);
         *ptr2file = OpenedFile;
-        *debug_error = NO_ERROR;
+        return;
     }
     else
     {
@@ -786,7 +803,7 @@ void dataLogger::openFile(File *ptr2file, String & filename , byte OPERATION,  d
 
 void dataLogger::closeFile(File *ptr2file)
 {
-    // File must close at start of corresponding ino file!
+    // File must close after read or write duction!
     ptr2file->close();
 }
 
@@ -802,6 +819,7 @@ void dataLogger::writeData(double data2write, unsigned long timestamp, unsigned 
      {
          // CNT, TIMESTAMP_MILLIS, DATA_VAL
         ptr2file->print(data_cnt,DEC); ptr2file->print(" , "); ptr2file->print(timestamp,DEC); ptr2file->print(" , "); ptr2file->println(data2write,DEC);
+        closeFile(ptr2file);
         *debug_error = NO_ERROR;
 
      }
