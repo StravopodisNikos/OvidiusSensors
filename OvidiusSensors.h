@@ -129,6 +129,17 @@ class imu9dof: public Adafruit_FXAS21002C, public Adafruit_FXOS8700, public SF, 
 
 };
 
+/*
+class currentSensor: public Adafruit_INA219, public Wire
+{
+  private:
+    
+  public:
+    currentSensor(/);
+    ~currentSensor();
+};
+*/
+
 }
 
 namespace tools
@@ -184,7 +195,10 @@ namespace tools
 
       bool createSensorDir(sensors::sensors_list sensor_choice, String session_dir, String &final_sensor_dir);
 
-      void openFile(File *ptr2file, String final_sensor_dir, String filename , byte OPERATION,  debug_error_type * debug_error);
+      //void createFile(File *ptr2file, String final_sensor_dir, String &filename , byte OPERATION,  debug_error_type * debug_error);
+      void createFile(String final_sensor_dir, String &filename ,  debug_error_type * debug_error);
+
+      void openFile(File *ptr2file, String filename , byte OPERATION,  debug_error_type * debug_error);
 
       void closeFile(File *ptr2file);
 

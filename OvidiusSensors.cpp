@@ -490,6 +490,16 @@ void imu9dof::getFilterInterval(int * filter_interval)
     *filter_interval = _FILTER_UPDATE_RATE_MILLIS;
 }
 
+/*
+currentSensor::currentSensor()
+{
+}
+
+currentSensor::~currentSensor()
+{
+}
+*/
+
 using namespace tools;
 // ============================================================================
 //  C U S T O M -- G R I P P E R
@@ -665,7 +675,7 @@ dataLogger::dataLogger(): String(), SDClass()
 
 void dataLogger::setupDataLogger(File *ptr2root, debug_error_type * debug_error)
 {
-    Serial.println("STARTED setupDataLogger");
+   //Serial.println("STARTED setupDataLogger");
 
    bool initialized_sd = false;
    int total_time;
@@ -675,7 +685,7 @@ void dataLogger::setupDataLogger(File *ptr2root, debug_error_type * debug_error)
         initialized_sd = SD.begin(SD_CARD_CS_PIN);
         if (!initialized_sd)
         {
-           Serial.println("den anoigei");
+           //Serial.println("den anoigei");
            *debug_error = SD_INIT_FAILED;
         }
         
@@ -766,15 +776,23 @@ bool dataLogger::createSensorDir(sensors::sensors_list sensor_choice, String ses
     }
 }
 
-void dataLogger::openFile(File *ptr2file, String final_sensor_dir,  String filename , byte OPERATION,  debug_error_type * debug_error)
+//void dataLogger::createFile(File *ptr2file, String final_sensor_dir,  String &filename , byte OPERATION,  debug_error_type * debug_error)
+void dataLogger::createFile(String final_sensor_dir,  String &filename ,  debug_error_type * debug_error)
+
 {
     // MADNESS!! THIS FUNCTION IS EXECUTED IN INO FILE
-    // WITH COMMAND: SD.open("global_file_path", FILE_WRITE/READ);
-
-    File OpenedFile;
+    // WITH COMMAND: SD.open("global_file_path", FILE_WRITE/READ); l.113 testing_dataLogger
+    
+    int MIN;
+    String MIN_S;
     String folder_splitter  = String("/");
+    MIN   = minute();   MIN_S   = String(MIN,DEC);
 
-    filename = final_sensor_dir + folder_splitter + filename;
+    File CreatedFile;
+
+    filename = final_sensor_dir + folder_splitter + MIN_S + filename;
+
+    Serial.println(filename);
 
     if (SD.exists(filename))
     {
@@ -785,13 +803,33 @@ void dataLogger::openFile(File *ptr2file, String final_sensor_dir,  String filen
         *debug_error = NO_ERROR;
     }
     
-    //OpenedFile = SD.open("GAMW.log", OPERATION);
+    //CreatedFile = SD.open("GAMW.log", OPERATION);
 
     if (*debug_error == NO_ERROR)
     {
-        OpenedFile = SD.open(filename, OPERATION);
-        *ptr2file = OpenedFile;
+        CreatedFile = SD.open(filename); // creates and opens file
+        CreatedFile.close();                        // immediate closes file after creation
+        //*ptr2file = CreatedFile;
+        //ptr2file->close();      // immediate closes file after creation
         return;
+    }
+    else
+    {
+        *debug_error = CREATE_FILE_FAILED;
+    }
+    
+    return;
+}
+
+void dataLogger::openFile(File *ptr2file, String filename , byte OPERATION,  debug_error_type * debug_error)
+{
+    // filename: MUST be the global name assigned after creation!
+
+    *ptr2file = SD.open(filename, OPERATION);
+
+    if( *ptr2file )
+    {
+        *debug_error = NO_ERROR;
     }
     else
     {
@@ -803,8 +841,8 @@ void dataLogger::openFile(File *ptr2file, String final_sensor_dir,  String filen
 
 void dataLogger::closeFile(File *ptr2file)
 {
-    // File must close after read or write duction!
     ptr2file->close();
+    return;
 }
 
 //template <class T>
