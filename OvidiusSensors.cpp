@@ -1,13 +1,16 @@
 #include "Arduino.h"
+#include <stdlib.h>
 #include <EEPROM.h>
 #include <Servo.h>
 #include "HX711.h"
 #include <SPI.h>
 #include <SD.h> 
+//#include <SdFat.h>
 #include <TimeLib.h>
 #include <OvidiusSensors.h>
 #include <utility/OvidiusSensors_config.h>
 #include <utility/OvidiusSensors_debug.h>
+#include <utility/sd_ct_chars.h>
 #include <ovidius_robot_controller_eeprom_addresses.h>
 
 using namespace sensors;
@@ -668,9 +671,12 @@ void gripper::writeGripperStateEEPROM(tools::gripper_states * gripper_current_st
 // ============================================================================
 //  D A T A -- L O G G E R
 // ============================================================================
-dataLogger::dataLogger(): String(), SDClass()
+dataLogger::dataLogger(): String(), File(), SDClass()
 {
     pinMode(SD_CARD_CS_PIN,OUTPUT);
+
+    _file_response       = false;
+    _boolean_sd_response = false;
 }
 
 void dataLogger::setupDataLogger(File *ptr2root, debug_error_type * debug_error)
@@ -707,32 +713,56 @@ void dataLogger::setupDataLogger(File *ptr2root, debug_error_type * debug_error)
     return;
 }
 
-bool dataLogger::createSessionDir(String &session_dir)
+bool dataLogger::createSessionDir( char * session_dir)
 {
     // this is called at startup-sets the char name of directory
     // NAME = "TIME_DATE" = "MIN_HR_DAY_MONTH_YEAR"
     // Assumes that time has been set successfully during setup!
     int MIN,HR,DAY,MONTH,YEAR;
-    String MIN_S,HR_S,DAY_S,MONTH_S,YEAR_S;
-    String folder_splitter  = String("/");
+    char conv_buffer[33];           //buffer to contain int that will be converted to char*
+    String str;                     // just for string->char
 
-    String BUILT_DIR_NAME = String();
-    String sting_spacer   = String("_");
-    // first receive int of MIN-HR-DAY-MONTH-YEAR
-    MIN   = minute();   MIN_S   = String(MIN,DEC);
-    HR    = hour();     HR_S    = String(HR,DEC);
-    DAY   = day();      DAY_S   = String(DAY,DEC);
-    MONTH = month();    MONTH_S = String(MONTH,DEC);
-    YEAR  = year();     YEAR_S  = String(YEAR,DEC);
+    // itoa buffers
+    //char * MIN_S;
+    //char * HR_S;
+    //char * DAY_S;
+    //char * MONTH_S;
+    //char * YEAR_S;
+    // itoa conversion -> gamietai
+    //MIN   = minute();   MIN_S   = itoa(MIN, conv_buffer, 10 );
+    //HR    = hour();     HR_S    = itoa(HR, conv_buffer, 10 );
+    //DAY   = day();      DAY_S   = itoa(DAY, conv_buffer, 10 );
+    //MONTH = month();    MONTH_S = itoa(MONTH, conv_buffer, DEC );
+    //YEAR  = year();     YEAR_S  = itoa(YEAR, conv_buffer, DEC );
+
+    // toCharArray buffers
+    char MIN_S[2];
+    char HR_S[2];
+    char DAY_S[2];
+    char MONTH_S[2];
+    //char YEAR_S[2];
+
+    // int - String - toCharArray conversion
+    MIN   = minute(); str = String(MIN); str.toCharArray(MIN_S,2);
+    HR    = hour();   str = String(HR);  str.toCharArray(HR_S,2);
+    DAY   = day();    str = String(DAY); str.toCharArray(DAY_S,2);
 
     // build the dir name "TIME_DATE" described above from ints
-    BUILT_DIR_NAME = MIN_S + HR_S + DAY_S + sting_spacer + MONTH_S;// + sting_spacer + YEAR_S;
+    //*session_dir = MIN_S + HR_S + DAY_S + string_spacer + MONTH_S;// + sting_spacer + YEAR_S;
+    strcpy(session_dir, MIN_S);
+    //strcpy(session_dir, "GAM");
+    //strcat(session_dir, "/logs");
+    strcat(session_dir, HR_S);
+    //strcat(session_dir, &string_spacer);
+    strcat(session_dir, DAY_S);
+    //strcat(session_dir, MONTH_S);
 
     // create the dir
-    if(SD.mkdir(BUILT_DIR_NAME))
+    _boolean_sd_response = SD.mkdir(session_dir);
+    if(_boolean_sd_response)
     {
-        //Serial.println("SUCCESS");
-        session_dir = BUILT_DIR_NAME;
+        //DEBUG_SERIAL.println("SUCCESS");
+        //delay(SD_STABIL_MILLIS);
         return true;
     }
     else
@@ -742,32 +772,43 @@ bool dataLogger::createSessionDir(String &session_dir)
     }
 }
 
-bool dataLogger::createSensorDir(sensors::sensors_list sensor_choice, String session_dir, String &final_sensor_dir)
+//bool dataLogger::createSensorDir(sensors::sensors_list sensor_choice, String session_dir, String &final_sensor_dir)
+bool dataLogger::createSensorDir(sensors::sensors_list sensor_choice, char * session_dir, char * final_sensor_dir)
 {
     // will create a sensor folder inside the session folder provided
-    String expl_sensor_dir  = String();
-    String folder_splitter  = String("/");
-
+    
     switch (sensor_choice)
     {
+        case JOINT_POS:
+            strcpy(final_sensor_dir, session_dir);
+            strcat(final_sensor_dir, "/POS/");
+            break;
+        case JOINT_VEL:
+            strcpy(final_sensor_dir, session_dir);
+            strcat(final_sensor_dir, "/VEL/");
+            break;           
         case FORCE_3AXIS:
-            expl_sensor_dir = String("FORCE");
+            strcpy(final_sensor_dir, session_dir);
+            strcat(final_sensor_dir, "/FC/");
             break;
         case IMU_9AXIS:
-            expl_sensor_dir = String("IMU");
+            strcpy(final_sensor_dir, session_dir);
+            strcat(final_sensor_dir, "/IMU/");
             break;
         case CURRENT_JOINT1:
-            expl_sensor_dir = String("CURRENT");
+            strcpy(final_sensor_dir, session_dir);
+            strcat(final_sensor_dir, "/CUR/");
             break;    
         default:
             return false;
             break;
     }
 
-    final_sensor_dir = session_dir + folder_splitter + expl_sensor_dir;
 
-    if(SD.mkdir(final_sensor_dir))
+    _boolean_sd_response = SD.mkdir(final_sensor_dir);
+    if(_boolean_sd_response)
     {
+        //delay(SD_STABIL_MILLIS);
         return true;
     }
     else
@@ -777,24 +818,43 @@ bool dataLogger::createSensorDir(sensors::sensors_list sensor_choice, String ses
 }
 
 //void dataLogger::createFile(File *ptr2file, String final_sensor_dir,  String &filename , byte OPERATION,  debug_error_type * debug_error)
-void dataLogger::createFile(String final_sensor_dir,  String &filename ,  debug_error_type * debug_error)
-
+//void dataLogger::createFile(String final_sensor_dir,  String &filename ,  debug_error_type * debug_error)
+void dataLogger::createFile(File *ptr2file, char * path2file, char * filename ,  debug_error_type * debug_error)
 {
-    // MADNESS!! THIS FUNCTION IS EXECUTED IN INO FILE
-    // WITH COMMAND: SD.open("global_file_path", FILE_WRITE/READ); l.113 testing_dataLogger
-    
-    int MIN;
-    String MIN_S;
-    String folder_splitter  = String("/");
-    MIN   = minute();   MIN_S   = String(MIN,DEC);
+    // re-written with no Strings
+    const char *final_name;
 
-    File CreatedFile;
+    char conv_buffer[33];
+    int MIN,SEC;
+    String str;                     // just for string->char
 
-    filename = final_sensor_dir + folder_splitter + MIN_S + filename;
+    // itoa buffers
+    //char * MIN_S;
+    //char * SEC_S;
+    // itoa conversion -> gamietai
+    //SEC = second();   SEC_S = itoa(SEC, conv_buffer, 10 );
+    //MIN = minute();   MIN_S = itoa(MIN, conv_buffer, 10 );
 
-    Serial.println(filename);
+    // toCharArray buffers
+    char MIN_S[2];
+    char SEC_S[2];
+    // String - toCharArray conversion
+    SEC = second(); str = String(SEC);  str.toCharArray(SEC_S,2);
+    MIN = minute(); str = String(MIN);  str.toCharArray(MIN_S,2);
 
-    if (SD.exists(filename))
+    // name concatenation
+    strcpy(filename, path2file);
+    strcat(filename, SEC_S);
+    //strcat(filename, &string_spacer);
+    strcat(filename, MIN_S);
+
+    strcat(filename, ".log");
+    //strcat(filename, &dot);
+    //strcat(filename, &file_ext_log);
+
+    final_name = filename;
+
+    if (exists(final_name))
     {
         *debug_error = SD_FILE_EXISTS;
     }
@@ -802,31 +862,38 @@ void dataLogger::createFile(String final_sensor_dir,  String &filename ,  debug_
     {
         *debug_error = NO_ERROR;
     }
-    
-    //CreatedFile = SD.open("GAMW.log", OPERATION);
 
     if (*debug_error == NO_ERROR)
     {
-        CreatedFile = SD.open(filename); // creates and opens file
-        CreatedFile.close();                        // immediate closes file after creation
-        //*ptr2file = CreatedFile;
-        //ptr2file->close();      // immediate closes file after creation
-        return;
+
+        *ptr2file = SD.open(final_name, FILE_WRITE); // since file doesn't exist yet operation MUST BE WRITE, as specified in Ln452 SD.cpp
+        if (*ptr2file)
+        {
+            //delay(SD_STABIL_MILLIS);
+            //CreatedFile.close();      
+            ptr2file->close();          // immediate closes file after creation
+        }
+        else
+        {
+            *debug_error = CREATE_FILE_FAILED1;
+        }   
     }
     else
     {
-        *debug_error = CREATE_FILE_FAILED;
+        *debug_error = CREATE_FILE_FAILED2;
     }
     
     return;
 }
 
-void dataLogger::openFile(File *ptr2file, String filename , byte OPERATION,  debug_error_type * debug_error)
+void dataLogger::openFile(File *ptr2file, const char *  filename , uint8_t OPERATION,  debug_error_type * debug_error)
 {
-    // filename: MUST be the global name assigned after creation!
+    // filename: MUST be the global name assigned after creation! [16-3-21]
+    // next try: check the pointer of the file object [19-3-21]
 
-    *ptr2file = SD.open(filename, OPERATION);
 
+    *ptr2file = SD.open(filename, OPERATION);  // here the file pointer gets the file that points to!
+    
     if( *ptr2file )
     {
         *debug_error = NO_ERROR;
@@ -835,13 +902,15 @@ void dataLogger::openFile(File *ptr2file, String filename , byte OPERATION,  deb
     {
         *debug_error = OPEN_FILE_FAILED;
     }
-    
     return;
+
 }
 
-void dataLogger::closeFile(File *ptr2file)
+void dataLogger::closeFile(File *ptr2file, debug_error_type * debug_error)
 {
+    // assumes file was open!!!!
     ptr2file->close();
+    *debug_error = NO_ERROR;         // => does nothing
     return;
 }
 
@@ -853,18 +922,15 @@ void dataLogger::writeData(double data2write, unsigned long timestamp, unsigned 
     // of NO_ERROR OR OPEN_FILE_FAILED. This function is executed only if NO_ERROR
     // was received!
     
-     if (*ptr2file)
-     {
-         // CNT, TIMESTAMP_MILLIS, DATA_VAL
+    if (*debug_error == NO_ERROR)
+    {
+        // CNT, TIMESTAMP_MILLIS, DATA_VAL
         ptr2file->print(data_cnt,DEC); ptr2file->print(" , "); ptr2file->print(timestamp,DEC); ptr2file->print(" , "); ptr2file->println(data2write,DEC);
-        closeFile(ptr2file);
-        *debug_error = NO_ERROR;
-
-     }
-     else
-     {
+    }
+    else
+    {
         *debug_error = DATA_WRITE_FAILED;
-     }
-      
+    }
+    
     return;
 }

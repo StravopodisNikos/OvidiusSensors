@@ -6,6 +6,7 @@
 #ifndef OvidiusSensors_h
 #define OvidiusSensors_h
 #include "Arduino.h"
+#include <stdlib.h>
 /*
  *  EXTERNAL LIBRARIES
  */
@@ -21,7 +22,8 @@
 #include <Adafruit_AHRS.h>
 #include <Wire.h>
 #include <SPI.h>
-#include <SD.h> 
+#include <SD.h>
+//#include <SdFat.h>
 #include <TimeLib.h>
 
 enum function_exec_state {success, failed};
@@ -181,26 +183,32 @@ namespace tools
 
   };
 
-  class dataLogger: public String, public SDClass
+  class dataLogger: public String, public File, public SDClass
   {
     private:
-      /* data */
+      uint8_t _file_response;
+      boolean _boolean_sd_response;
 
     public:
       dataLogger();
       //~dataLogger();
       void setupDataLogger(File *ptr2root, debug_error_type * debug_error);
       
-      bool createSessionDir(String &session_dir);
+      //bool createSessionDir(String &session_dir);
+      bool createSessionDir( char * session_dir);
 
-      bool createSensorDir(sensors::sensors_list sensor_choice, String session_dir, String &final_sensor_dir);
+      //bool createSensorDir(sensors::sensors_list sensor_choice, String session_dir, String &final_sensor_dir);
+      bool createSensorDir(sensors::sensors_list sensor_choice, char * session_dir, char * final_sensor_dir);
 
-      //void createFile(File *ptr2file, String final_sensor_dir, String &filename , byte OPERATION,  debug_error_type * debug_error);
-      void createFile(String final_sensor_dir, String &filename ,  debug_error_type * debug_error);
+      //void createFile(File *ptr2file, String final_sensor_dir, String &filename , byte OPERATION,  debug_error_type * debug_error);      
+      //void createFile(String final_sensor_dir, String &filename ,  debug_error_type * debug_error);
+      //void createFile(SdFile *ptr2file, String &filename ,  debug_error_type * debug_error);
+      void createFile(File *ptr2file,char * path2file,  char * filename ,  debug_error_type * debug_error);
 
-      void openFile(File *ptr2file, String filename , byte OPERATION,  debug_error_type * debug_error);
+      //void openFile(SdFile *ptr2file, String filename , byte OPERATION,  debug_error_type * debug_error);
+      void openFile(File *ptr2file, const char * filename , uint8_t OPERATION,  debug_error_type * debug_error);
 
-      void closeFile(File *ptr2file);
+      void closeFile(File *ptr2file, debug_error_type * debug_error);
 
       //template <class T>
       //void writeData(T data2write, unsigned long timestamp, unsigned long data_cnt, File *ptr2file, debug_error_type * debug_error);

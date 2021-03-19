@@ -35,11 +35,11 @@
 #define MAG_ID  3
 
 // SD card read/write
-#define SD_CARD_CS_PIN          4
+#define SD_CARD_CS_PIN          53
 #define SD_INIT_TIMEOUT_MILLIS  10000
-#define TIME_HEADER  "T"   
-#define TIME_REQUEST  7     
-
+#define TIME_HEADER             "T"   
+#define TIME_REQUEST             7     
+#define SD_STABIL_MILLIS         5
 // Log files ID
 #define POS_LOG_ID      0
 #define VEL_LOG_ID      1
