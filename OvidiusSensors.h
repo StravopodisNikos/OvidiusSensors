@@ -13,14 +13,16 @@
 
 #include <Servo.h>                // GRIPPER LIBRARY
 #include "HX711.h"                // FORCE SENSOR LIBRARY
-#include "SensorFusion.h"         // IMU LIBRARIES - include sensor fusion+filter
-#include <Adafruit_FXAS21002C.h>  // include gyro
-#include <Adafruit_FXOS8700.h>    // include accel+mag
-#include <Adafruit_Sensor.h>
-#include "Adafruit_Sensor_Calibration.h"
-#include "Adafruit_Sensor_Calibration_EEPROM.h"
-#include <Adafruit_AHRS.h>
+//#include "SensorFusion.h"         // IMU LIBRARIES - include sensor fusion+filter
+//#include <Adafruit_FXAS21002C.h>  // include gyro
+//#include <Adafruit_FXOS8700.h>    // include accel+mag
+//#include <Adafruit_Sensor.h>
+//#include "Adafruit_Sensor_Calibration.h"
+//#include "Adafruit_Sensor_Calibration_EEPROM.h"
+//#include <Adafruit_AHRS.h>
+//#include <Wire.h>
 #include <Wire.h>
+#include <Adafruit_INA219.h>
 #include <SPI.h>
 #include <SD.h>
 //#include <SdFat.h>
@@ -35,7 +37,7 @@ namespace sensors
   typedef enum force_sensor_states {FORCE_OFF,FORCE_IDLE,FORCE_READY,FORCE_READS,FORCE_WRITES,FORCE_ERROR};
   typedef enum imu_sensor_states {IMU_READY,IMU_BUSY,IMU_ERROR};
   typedef enum imu_filter {MAHONY_F,MADGWICK_F};
-
+/*
   struct imu_packet
   {
     Adafruit_FXAS21002C *ptr2_fxas;   // is used to point to gyro object creted in ino file
@@ -51,7 +53,13 @@ namespace sensors
     float  pitch_c;
     float  yaw_c; 
   };
-  
+  */
+
+  struct current_packet
+  {
+    Adafruit_INA219 * ptr2ina219;
+    double current_measurement_mA;
+  };
 
 class force3axis
 {
@@ -82,7 +90,7 @@ class force3axis
 
     bool getPermanentZeroOffset(HX711 * ptr2hx711, long * axis_offset);
 
-    bool measureForceKilos(HX711 * ptr2hx711, float * force_measurements_kgs, debug_error_type * debug_error);
+    bool measureForceKilos(HX711 * ptr2hx711, double * force_measurements_kgs, debug_error_type * debug_error);
 
     bool getRawMeasurement(HX711 * ptr2hx711, float * raw_measurement, debug_error_type * debug_error);
 
@@ -93,7 +101,7 @@ class force3axis
     HX711 ForceSensorAxis;
 };
 
-
+/*
 class imu9dof: public Adafruit_FXAS21002C, public Adafruit_FXOS8700, public SF, public Adafruit_Sensor_Calibration_EEPROM
 {
   private:
@@ -130,17 +138,31 @@ class imu9dof: public Adafruit_FXAS21002C, public Adafruit_FXOS8700, public SF, 
     imu_packet IMU_PACKET;
 
 };
+*/
 
-/*
-class currentSensor: public Adafruit_INA219, public Wire
+class currentSensor: public Adafruit_INA219
 {
   private:
+    unsigned long _last_current_update;
+    int _analog_voltage_measurement;
+    int _voltage_mapped;
+    float _voltage_mapped_V;
+    double _acs712_VIN;
+    double _acs712_Vstart;
     
   public:
-    currentSensor(/);
-    ~currentSensor();
+    currentSensor();
+    //~currentSensor();
+
+    // ADAFRUIT INA219
+    void setupCurrentSensor(current_packet * ptr2cur_packet, debug_error_type * debug_error);
+
+    void measureCurrent_mA(current_packet * ptr2cur_packet , debug_error_type * debug_error);
+
+    // ALLEGRO ACS712
+    void measureCurrentACS712_A(double & current_measurement, debug_error_type * debug_error);
+
 };
-*/
 
 }
 
@@ -163,9 +185,9 @@ namespace tools
 
       int setupGripper();
 
-      void readGripperStateEEPROM(tools::gripper_states * gripper_current_state);
+      //void readGripperStateEEPROM(tools::gripper_states * gripper_current_state);
 
-      void writeGripperStateEEPROM(tools::gripper_states * gripper_current_state);
+      //void writeGripperStateEEPROM(tools::gripper_states * gripper_current_state);
 
       Servo GripperServo;
       
@@ -198,12 +220,12 @@ namespace tools
       bool createSessionDir( char * session_dir);
 
       //bool createSensorDir(sensors::sensors_list sensor_choice, String session_dir, String &final_sensor_dir);
-      bool createSensorDir(sensors::sensors_list sensor_choice, char * session_dir, char * final_sensor_dir);
+      bool createSensorDir(sensors::sensors_list sensor_choice, const char * session_dir, char * final_sensor_dir, debug_error_type * debug_error);
 
       //void createFile(File *ptr2file, String final_sensor_dir, String &filename , byte OPERATION,  debug_error_type * debug_error);      
       //void createFile(String final_sensor_dir, String &filename ,  debug_error_type * debug_error);
       //void createFile(SdFile *ptr2file, String &filename ,  debug_error_type * debug_error);
-      void createFile(File *ptr2file,char * path2file,  char * filename ,  debug_error_type * debug_error);
+      void createFile(File *ptr2file, const char * path2file,  char * filename ,  debug_error_type * debug_error);
 
       //void openFile(SdFile *ptr2file, String filename , byte OPERATION,  debug_error_type * debug_error);
       void openFile(File *ptr2file, const char * filename , uint8_t OPERATION,  debug_error_type * debug_error);
@@ -213,7 +235,6 @@ namespace tools
       //template <class T>
       //void writeData(T data2write, unsigned long timestamp, unsigned long data_cnt, File *ptr2file, debug_error_type * debug_error);
       void writeData(double data2write, unsigned long timestamp, unsigned long data_cnt, File *ptr2file, debug_error_type * debug_error);
-
   };
   
 }

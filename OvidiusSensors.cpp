@@ -1,6 +1,7 @@
 #include "Arduino.h"
 #include <stdlib.h>
-#include <EEPROM.h>
+#include <math.h> 
+//#include <EEPROM.h>
 #include <Servo.h>
 #include "HX711.h"
 #include <SPI.h>
@@ -29,7 +30,7 @@ bool force3axis::setupForceSensor(HX711 *ptr2hx711, float manual_calibration_sca
      * Initializes pins - sets scale factor extracted manually from off-assembly
      * installation and changes state OFF->READY
      */
-    ptr2hx711 = & ForceSensorAxis;
+    //ptr2hx711 = & ForceSensorAxis;
 
     // initialize sensor pins
     ptr2hx711->begin(_DOUT_PIN_AXIS, _SCK_PIN_AXIS);
@@ -84,7 +85,7 @@ bool force3axis::getPermanentZeroOffset(HX711 * ptr2hx711, long * axis_offset)
     }
 }
 
-bool force3axis::measureForceKilos(HX711 * ptr2hx711, float * force_measurements_kgs, debug_error_type * debug_error)
+bool force3axis::measureForceKilos(HX711 * ptr2hx711, double * force_measurements_kgs, debug_error_type * debug_error)
 {
     // modified to execute for all calls
 
@@ -218,7 +219,7 @@ void force3axis::getCurrentState(HX711 * ptr2hx711, sensors::force_sensor_states
 // ============================================================================
 //  A D A F R U I T -- 9 D O F -- I M U -- W I T H -- F U S I O N
 // ============================================================================
-
+/*
 imu9dof::imu9dof(gyroRange_t gyr_range, fxos8700AccelRange_t acc_range, int filter_change_rate_hz, int32_t gyr_id, int32_t acc_id, int32_t mag_id): Adafruit_FXAS21002C(gyr_id), Adafruit_FXOS8700(acc_id, mag_id), SF(), Adafruit_Sensor_Calibration_EEPROM()
 {
     _GYR_ID = gyr_id;
@@ -492,16 +493,98 @@ void imu9dof::getFilterInterval(int * filter_interval)
 {
     *filter_interval = _FILTER_UPDATE_RATE_MILLIS;
 }
+*/
 
-/*
-currentSensor::currentSensor()
+
+currentSensor::currentSensor(): Adafruit_INA219()
 {
-}
+    // [24-3-21] Added functions for ACS712
+    _last_current_update = 0;
 
+    _analog_voltage_measurement = 0;
+
+    _acs712_Vstart  = ACS_VOLTAGE_START;
+    _acs712_VIN     = ACS_VOLTAGE_IN;
+}
+/*
 currentSensor::~currentSensor()
 {
 }
 */
+void currentSensor::setupCurrentSensor(current_packet * ptr2cur_packet, debug_error_type * debug_error)
+{
+    
+    bool initialized_current_sensor = false;
+    int total_time;
+    unsigned long started_currentSensor_initialization = millis();
+    do
+    {
+        initialized_current_sensor = ptr2cur_packet->ptr2ina219->begin();
+        if (!initialized_current_sensor)
+        {
+           *debug_error = CUR_SENSOR_INIT_FAILED;
+        }
+        
+        total_time = millis() - started_currentSensor_initialization;
+    } while( (!initialized_current_sensor) && (total_time < CUR_SENSOR_INIT_TIMEOUT_MILLIS) );
+
+    if (initialized_current_sensor)
+    {
+        *debug_error = NO_ERROR;
+    }
+    
+    return;
+}
+
+void currentSensor::measureCurrent_mA(current_packet * ptr2cur_packet, debug_error_type * debug_error)
+{
+    ptr2cur_packet->current_measurement_mA = ptr2cur_packet->ptr2ina219->getCurrent_mA();
+
+    if ( (ptr2cur_packet->current_measurement_mA < 0 ) || (ptr2cur_packet->current_measurement_mA > MAX_CURRENT_mA) )
+    {
+        *debug_error = CUR_SENSOR_WRONG_MEAS;
+    }
+    else
+    {
+        *debug_error = NO_ERROR;
+    }
+    
+    return;
+}
+
+void currentSensor::measureCurrentACS712_A(double & current_measurement, debug_error_type * debug_error)
+{
+    analogReadResolution(DUE_MAX_BITS_RESOL);         // FOR DUE ONLY -> SETS 12 bit resolution
+    // Viout(analog) of the module+voltage divider circuit measured in arduino analog pin
+    //for (size_t i = 0; i < nCurSmaples; i++)
+    //{
+        _analog_voltage_measurement = analogRead(ACS_VOLTAGE_READ_PIN);
+        //_analog_voltage_measurement += _analog_voltage_measurement;
+        //delayMicroseconds(ACS_tr_1nF_micros+2);
+    //}
+    //_analog_voltage_measurement = (int) _analog_voltage_measurement / nCurSmaples;
+    
+    // analog -> voltage
+    //_voltage_calculated = (_analog_voltage_measurement / DUE_MAX_ANAL_RESOLUTION ) * DUE_mV;
+    _voltage_mapped = map(_analog_voltage_measurement, 0, DUE_MAX_ANAL_RESOLUTION, 0, DUE_mV);
+    _voltage_mapped_V = _voltage_mapped / 1000.0;
+
+    // direct current calculation formula
+    current_measurement = ( _voltage_mapped_V - ACS_VOLTAGE_START ) / ACS_30A_SENSITIVITY;
+    current_measurement = fabs(current_measurement);
+
+    if (current_measurement > STP_CURRENT_LIMIT)
+    {
+        * debug_error = HIGH_CURRENT_MEASURED;
+    }
+    else
+    {
+        * debug_error = NO_ERROR;
+    }
+
+    return;
+}
+
 
 using namespace tools;
 // ============================================================================
@@ -579,7 +662,7 @@ void gripper::closeGripperForce(Servo * ptr2servo, unsigned long grasp_force_lim
             impossible_grip = true;
         }
         
-        delay(50);
+        delay(GRIPPER_MOV_DEL_MILLIS);
 
     } while ( (!object_gripped) && (!impossible_grip) );
     
@@ -595,9 +678,11 @@ unsigned long gripper::measureForce()
     // Returns long value in [N]
     unsigned long force_measured;
 
+    analogReadResolution(DUE_MAX_BITS_RESOL); // ONLY FOR DUE! - > FOR MEGA COMMENT OUT
+
     _FSR_READING = analogRead(_FSR_AI_PIN); 
 
-    _FSR_VOLTAGE = map(_FSR_READING, 0, 1023, 0, _FSR_VCC_mV);
+    _FSR_VOLTAGE = map(_FSR_READING, 0, DUE_MAX_BITS_RESOL, 0, DUE_mV);   // FOR MEGA: DUE_ANAL_RESOLUTION -> MEGA_ANAL_RESOLUTION, _FSR_VCC_mV ->DUE_mV
 
     if ( _FSR_VOLTAGE < _FSR_CALIBR_OFFSET)
     {
@@ -636,9 +721,13 @@ unsigned long gripper::measureForce()
 
 int gripper::setupGripper()
 {
+    // [23-3-21] added DUE analog specs
+
+    analogReadResolution(DUE_MAX_BITS_RESOL); // ONLY FOR DUE! - > FOR MEGA COMMENT OUT
+    
     _FSR_READING = analogRead(_FSR_AI_PIN);
 
-    _FSR_VOLTAGE = map(_FSR_READING, 0, 1023, 0, _FSR_VCC_mV);
+    _FSR_VOLTAGE = map(_FSR_READING, 0, DUE_MAX_BITS_RESOL, 0, DUE_mV);   // FOR MEGA: DUE_MAX_BITS_RESOL -> MEGA_ANAL_RESOLUTION, _FSR_VCC_mV ->DUE_mV
 
     _FSR_CALIBR_OFFSET = _FSR_VOLTAGE;
 
@@ -647,11 +736,11 @@ int gripper::setupGripper()
     return calibrationFsrVoltage;
 }
 
+/*
 void gripper::readGripperStateEEPROM(tools::gripper_states * gripper_current_state)
 {
-    /*
-     *  Reads gripper state from EEPROM - Executed @ setup
-     */
+    // Reads gripper state from EEPROM - Executed @ setup
+
 
    EEPROM.get(CS_GRIPPER_EEPROM_ADDR, *gripper_current_state);
 
@@ -661,13 +750,11 @@ void gripper::readGripperStateEEPROM(tools::gripper_states * gripper_current_sta
 
 void gripper::writeGripperStateEEPROM(tools::gripper_states * gripper_current_state)
 {
-    /*
-     *  Writes gripper state from EEPROM - Executed @setup if user wants
-     */
+    // Writes gripper state from EEPROM - Executed @setup if user wants
 
    EEPROM.put(CS_GRIPPER_EEPROM_ADDR, *gripper_current_state);
 }
-
+*/
 // ============================================================================
 //  D A T A -- L O G G E R
 // ============================================================================
@@ -718,47 +805,49 @@ bool dataLogger::createSessionDir( char * session_dir)
     // this is called at startup-sets the char name of directory
     // NAME = "TIME_DATE" = "MIN_HR_DAY_MONTH_YEAR"
     // Assumes that time has been set successfully during setup!
-    int MIN,HR,DAY,MONTH,YEAR;
-    char conv_buffer[33];           //buffer to contain int that will be converted to char*
-    String str;                     // just for string->char
-
+    const char *final_name;
+    int MIN,HR,DAY,MONTH;//,YEAR;
+    
     // itoa buffers
-    //char * MIN_S;
-    //char * HR_S;
-    //char * DAY_S;
-    //char * MONTH_S;
+    char MIN_S[3];
+    char HR_S[3];
+    char DAY_S[3];
+    char MONTH_S[3];
     //char * YEAR_S;
     // itoa conversion -> gamietai
-    //MIN   = minute();   MIN_S   = itoa(MIN, conv_buffer, 10 );
-    //HR    = hour();     HR_S    = itoa(HR, conv_buffer, 10 );
-    //DAY   = day();      DAY_S   = itoa(DAY, conv_buffer, 10 );
-    //MONTH = month();    MONTH_S = itoa(MONTH, conv_buffer, DEC );
+    MIN   = minute();   itoa(MIN, MIN_S, 10 );
+    HR    = hour();     itoa(HR, HR_S, 10 );
+    DAY   = day();      itoa(DAY, DAY_S, 10 );
+    MONTH = month();    itoa(MONTH, MONTH_S, 10 );
     //YEAR  = year();     YEAR_S  = itoa(YEAR, conv_buffer, DEC );
 
     // toCharArray buffers
-    char MIN_S[2];
-    char HR_S[2];
-    char DAY_S[2];
-    char MONTH_S[2];
+    //String str;                     // just for string->char
+    //char MIN_S[2];
+    //char HR_S[2];
+    //char DAY_S[2];
+    //char MONTH_S[2];
     //char YEAR_S[2];
 
     // int - String - toCharArray conversion
-    MIN   = minute(); str = String(MIN); str.toCharArray(MIN_S,2);
-    HR    = hour();   str = String(HR);  str.toCharArray(HR_S,2);
-    DAY   = day();    str = String(DAY); str.toCharArray(DAY_S,2);
+    //MIN   = minute(); str = String(MIN); str.toCharArray(MIN_S,2);
+    //HR    = hour();   str = String(HR);  str.toCharArray(HR_S,2);
+    //DAY   = day();    str = String(DAY); str.toCharArray(DAY_S,2);
 
     // build the dir name "TIME_DATE" described above from ints
     //*session_dir = MIN_S + HR_S + DAY_S + string_spacer + MONTH_S;// + sting_spacer + YEAR_S;
     strcpy(session_dir, MIN_S);
     //strcpy(session_dir, "GAM");
     //strcat(session_dir, "/logs");
-    strcat(session_dir, HR_S);
+    //strcat(session_dir, HR_S);
     //strcat(session_dir, &string_spacer);
     strcat(session_dir, DAY_S);
-    //strcat(session_dir, MONTH_S);
+    strcat(session_dir,"_");
+    strcat(session_dir, MONTH_S);
 
     // create the dir
-    _boolean_sd_response = SD.mkdir(session_dir);
+    final_name = session_dir;
+    _boolean_sd_response = SD.mkdir(final_name);
     if(_boolean_sd_response)
     {
         //DEBUG_SERIAL.println("SUCCESS");
@@ -773,7 +862,7 @@ bool dataLogger::createSessionDir( char * session_dir)
 }
 
 //bool dataLogger::createSensorDir(sensors::sensors_list sensor_choice, String session_dir, String &final_sensor_dir)
-bool dataLogger::createSensorDir(sensors::sensors_list sensor_choice, char * session_dir, char * final_sensor_dir)
+bool dataLogger::createSensorDir(sensors::sensors_list sensor_choice, const char * session_dir, char * final_sensor_dir, debug_error_type * debug_error)
 {
     // will create a sensor folder inside the session folder provided
     
@@ -781,80 +870,92 @@ bool dataLogger::createSensorDir(sensors::sensors_list sensor_choice, char * ses
     {
         case JOINT_POS:
             strcpy(final_sensor_dir, session_dir);
-            strcat(final_sensor_dir, "/POS/");
+            strcat(final_sensor_dir, "/PS/");
+            *debug_error = NO_ERROR;
             break;
         case JOINT_VEL:
             strcpy(final_sensor_dir, session_dir);
-            strcat(final_sensor_dir, "/VEL/");
+            strcat(final_sensor_dir, "/VL/");
+            *debug_error = NO_ERROR;
             break;           
         case FORCE_3AXIS:
             strcpy(final_sensor_dir, session_dir);
             strcat(final_sensor_dir, "/FC/");
+            *debug_error = NO_ERROR;
             break;
         case IMU_9AXIS:
             strcpy(final_sensor_dir, session_dir);
-            strcat(final_sensor_dir, "/IMU/");
+            strcat(final_sensor_dir, "/IM/");
+            *debug_error = NO_ERROR;
             break;
         case CURRENT_JOINT1:
             strcpy(final_sensor_dir, session_dir);
-            strcat(final_sensor_dir, "/CUR/");
+            strcat(final_sensor_dir, "/CR/");
+            *debug_error = NO_ERROR;
             break;    
         default:
-            return false;
+            *debug_error = BUILD_SENSOR_PATH_FAILED;
             break;
     }
 
-
-    _boolean_sd_response = SD.mkdir(final_sensor_dir);
-    if(_boolean_sd_response)
+    if ( *debug_error == NO_ERROR )
     {
-        //delay(SD_STABIL_MILLIS);
-        return true;
+        _boolean_sd_response = SD.mkdir(final_sensor_dir);
+        if(_boolean_sd_response)
+        {
+            //delay(SD_STABIL_MILLIS);
+            return true;
+        }
+        else
+        {
+            *debug_error = BUILD_SENSOR_DIR_FAILED;
+            return false;
+        }
     }
     else
     {
-        return false;
-    }
+            return false;
+     }
+    
 }
 
 //void dataLogger::createFile(File *ptr2file, String final_sensor_dir,  String &filename , byte OPERATION,  debug_error_type * debug_error)
 //void dataLogger::createFile(String final_sensor_dir,  String &filename ,  debug_error_type * debug_error)
-void dataLogger::createFile(File *ptr2file, char * path2file, char * filename ,  debug_error_type * debug_error)
+void dataLogger::createFile(File *ptr2file, const char * path2file, char * filename ,  debug_error_type * debug_error)
 {
     // re-written with no Strings
     const char *final_name;
 
-    char conv_buffer[33];
     int MIN,SEC;
-    String str;                     // just for string->char
 
     // itoa buffers
-    //char * MIN_S;
-    //char * SEC_S;
+    char MIN_S[3];
+    char SEC_S[3];
     // itoa conversion -> gamietai
-    //SEC = second();   SEC_S = itoa(SEC, conv_buffer, 10 );
-    //MIN = minute();   MIN_S = itoa(MIN, conv_buffer, 10 );
+    SEC = second();   itoa(SEC, SEC_S, 10 );
+    MIN = minute();   itoa(MIN, MIN_S, 10 );
 
     // toCharArray buffers
-    char MIN_S[2];
-    char SEC_S[2];
+    //String str;                     // just for string->char
+    //char MIN_S[2];
+    //char SEC_S[2];
     // String - toCharArray conversion
-    SEC = second(); str = String(SEC);  str.toCharArray(SEC_S,2);
-    MIN = minute(); str = String(MIN);  str.toCharArray(MIN_S,2);
+    //SEC = second(); str = String(SEC);  str.toCharArray(SEC_S,2);
+    //MIN = minute(); str = String(MIN);  str.toCharArray(MIN_S,2);
 
     // name concatenation
-    strcpy(filename, path2file);
+    strcpy(filename, path2file);      // First concatenates the global path previously created
     strcat(filename, SEC_S);
     //strcat(filename, &string_spacer);
     strcat(filename, MIN_S);
 
-    strcat(filename, ".log");
+    strcat(filename, ".txt");
     //strcat(filename, &dot);
     //strcat(filename, &file_ext_log);
 
     final_name = filename;
-
-    if (exists(final_name))
+    /*
+    if (SD.exists(final_name))
     {
         *debug_error = SD_FILE_EXISTS;
     }
@@ -862,14 +963,16 @@ void dataLogger::createFile(File *ptr2file, char * path2file, char * filename , 
     {
         *debug_error = NO_ERROR;
     }
-
+    */
+    *debug_error = NO_ERROR;
     if (*debug_error == NO_ERROR)
     {
 
-        *ptr2file = SD.open(final_name, FILE_WRITE); // since file doesn't exist yet operation MUST BE WRITE, as specified in Ln452 SD.cpp
+        //*ptr2file = SD.open(final_name, FILE_WRITE); // since file doesn't exist yet operation MUST BE WRITE, as specified in Ln452 SD.cpp
+        *ptr2file = SD.open(final_name, FILE_WRITE);
         if (*ptr2file)
         {
-            //delay(SD_STABIL_MILLIS);
+            delay(SD_STABIL_MILLIS);
             //CreatedFile.close();      
             ptr2file->close();          // immediate closes file after creation
         }
