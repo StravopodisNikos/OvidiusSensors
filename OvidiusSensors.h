@@ -90,7 +90,7 @@ class force3axis
 
     bool getPermanentZeroOffset(HX711 * ptr2hx711, long * axis_offset);
 
-    bool measureForceKilos(HX711 * ptr2hx711, double * force_measurements_kgs, debug_error_type * debug_error);
+    bool measureForceKilos(HX711 * ptr2hx711, float * force_measurements_kgs, debug_error_type * debug_error);
 
     bool getRawMeasurement(HX711 * ptr2hx711, float * raw_measurement, debug_error_type * debug_error);
 
@@ -160,7 +160,7 @@ class currentSensor: public Adafruit_INA219
     void measureCurrent_mA(current_packet * ptr2cur_packet , debug_error_type * debug_error);
 
     // ALLEGRO ACS712
-    void measureCurrentACS712_A(double & current_measurement, debug_error_type * debug_error);
+    void measureCurrentACS712_A(float & current_measurement, debug_error_type * debug_error);
 
 };
 
@@ -234,7 +234,7 @@ namespace tools
 
       //template <class T>
       //void writeData(T data2write, unsigned long timestamp, unsigned long data_cnt, File *ptr2file, debug_error_type * debug_error);
-      void writeData(double data2write, unsigned long timestamp, unsigned long data_cnt, File *ptr2file, debug_error_type * debug_error);
+      void writeData(float * data2write, int size, unsigned long timestamp, unsigned long data_cnt, File *ptr2file, debug_error_type * debug_error);
   };
   
 }

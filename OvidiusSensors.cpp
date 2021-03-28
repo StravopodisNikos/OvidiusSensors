@@ -85,7 +85,7 @@ bool force3axis::getPermanentZeroOffset(HX711 * ptr2hx711, long * axis_offset)
     }
 }
 
-bool force3axis::measureForceKilos(HX711 * ptr2hx711, double * force_measurements_kgs, debug_error_type * debug_error)
+bool force3axis::measureForceKilos(HX711 * ptr2hx711, float * force_measurements_kgs, debug_error_type * debug_error)
 {
     // modified to execute for all calls
 
@@ -552,7 +552,7 @@ void currentSensor::measureCurrent_mA(current_packet * ptr2cur_packet, debug_err
     return;
 }
 
-void currentSensor::measureCurrentACS712_A(double & current_measurement, debug_error_type * debug_error)
+void currentSensor::measureCurrentACS712_A(float & current_measurement, debug_error_type * debug_error)
 {
     analogReadResolution(DUE_MAX_BITS_RESOL);         // FOR DUE ONLY -> SETS 12 bit resolution
     // Viout(analog) of the module+voltage divider circuit measured in arduino analog pin
@@ -1019,16 +1019,25 @@ void dataLogger::closeFile(File *ptr2file, debug_error_type * debug_error)
 
 //template <class T>
 //void dataLogger::writeData(T data2write, unsigned long timestamp, unsigned long data_cnt, File *ptr2file, debug_error_type * debug_error)
-void dataLogger::writeData(double data2write, unsigned long timestamp, unsigned long data_cnt, File *ptr2file, debug_error_type * debug_error)
+void dataLogger::writeData(float * data2write, int size, unsigned long timestamp, unsigned long data_cnt, File *ptr2file, debug_error_type * debug_error)
 {
     // the file object must be opened before write! file_state was given a value
     // of NO_ERROR OR OPEN_FILE_FAILED. This function is executed only if NO_ERROR
     // was received!
+    // [26-3-21] passing pointer to data values and the size of data elements
     
     if (*debug_error == NO_ERROR)
     {
-        // CNT, TIMESTAMP_MILLIS, DATA_VAL
-        ptr2file->print(data_cnt,DEC); ptr2file->print(" , "); ptr2file->print(timestamp,DEC); ptr2file->print(" , "); ptr2file->println(data2write,DEC);
+        ptr2file->print(timestamp,DEC);  // first write the time
+        
+        // DATA_VAL(s)
+        for (size_t i = 0; i < size; i++)
+        {
+            ptr2file->print(" , "); ptr2file->print(data2write[i],DEC);  // write the data in same row
+        }
+
+        ptr2file->print(" , "); ptr2file->println(data_cnt,DEC);  // final write cnt and chnage line for next writing
+
     }
     else
     {
