@@ -15,7 +15,7 @@
 #include <ovidius_robot_controller_eeprom_addresses.h>
 
 using namespace sensors;
-force3axis::force3axis(byte DOUT_PIN,byte SCK_PIN): ForceSensorAxis()
+force3axis::force3axis(byte DOUT_PIN,byte SCK_PIN)//: ForceSensorAxis()
 {
     _DOUT_PIN_AXIS = DOUT_PIN;
     _SCK_PIN_AXIS  = SCK_PIN;
@@ -71,7 +71,7 @@ bool force3axis::getPermanentZeroOffset(HX711 * ptr2hx711, long * axis_offset)
     /*
      *  Just to be able to see the offset values calculated after assembly
      */
-    ptr2hx711 = & ForceSensorAxis;
+    //ptr2hx711 = & ForceSensorAxis;
 
     if ( _force_state == FORCE_READY )
     {
@@ -89,11 +89,12 @@ bool force3axis::measureForceKilos(HX711 * ptr2hx711, float * force_measurements
 {
     // modified to execute for all calls
 
-    ptr2hx711 = & ForceSensorAxis;
+    //ptr2hx711 = & ForceSensorAxis;
 
     //_force_state = FORCE_READY;
     getCurrentState(ptr2hx711, &_force_state, debug_error);                     // seems redundant but enables calling fn outside class and reading current state
 
+    //_force_state = FORCE_READY;    
     if ( _force_state == FORCE_READY )
     {
         (* debug_error) = NO_ERROR;
@@ -115,7 +116,7 @@ bool force3axis::getRawMeasurement(HX711 * ptr2hx711, float * raw_measurement, d
 {
     // 
 
-    ptr2hx711 = & ForceSensorAxis;
+    //ptr2hx711 = & ForceSensorAxis;
 
     if ( _force_state == FORCE_READY )
     {
@@ -136,7 +137,7 @@ bool force3axis::getRawMeasurement(HX711 * ptr2hx711, float * raw_measurement, d
 
 void force3axis::setIdleState(HX711 * ptr2hx711, sensors::force_sensor_states * force_current_state, debug_error_type * debug_error)
 {
-    ptr2hx711 = & ForceSensorAxis;
+    //ptr2hx711 = & ForceSensorAxis;
 
     if ( _force_state == FORCE_READY )
     {
@@ -161,7 +162,7 @@ void force3axis::setIdleState(HX711 * ptr2hx711, sensors::force_sensor_states * 
 
 void force3axis::setReadyState(HX711 * ptr2hx711, sensors::force_sensor_states * force_current_state, debug_error_type * debug_error)
 {
-    ptr2hx711 = & ForceSensorAxis;
+    //ptr2hx711 = & ForceSensorAxis;
 
     if ( _force_state == FORCE_IDLE )
     {
@@ -186,7 +187,7 @@ void force3axis::setReadyState(HX711 * ptr2hx711, sensors::force_sensor_states *
 
 void force3axis::getCurrentState(HX711 * ptr2hx711, sensors::force_sensor_states * force_current_state, debug_error_type * debug_error)
 {
-    ptr2hx711 = & ForceSensorAxis;
+    //ptr2hx711 = & ForceSensorAxis;
 
     *force_current_state = _force_state;
     
@@ -615,7 +616,7 @@ void gripper::openGripper(Servo * ptr2servo, tools::gripper_states * gripper_cur
 
 void gripper::closeGripper(Servo * ptr2servo, tools::gripper_states * gripper_current_state)
 {
-    ptr2servo = &GripperServo;
+    //ptr2servo = &GripperServo;
 
     ptr2servo->attach(_SERVO_PWM_PIN);
 
@@ -632,7 +633,7 @@ void gripper::closeGripperForce(Servo * ptr2servo, unsigned long grasp_force_lim
 {
     unsigned long returned_grasp_force;
 
-    ptr2servo = &GripperServo;
+    //ptr2servo = &GripperServo;
 
     ptr2servo->attach(_SERVO_PWM_PIN);
 
@@ -682,7 +683,7 @@ unsigned long gripper::measureForce()
 
     _FSR_READING = analogRead(_FSR_AI_PIN); 
 
-    _FSR_VOLTAGE = map(_FSR_READING, 0, DUE_MAX_BITS_RESOL, 0, DUE_mV);   // FOR MEGA: DUE_ANAL_RESOLUTION -> MEGA_ANAL_RESOLUTION, _FSR_VCC_mV ->DUE_mV
+    _FSR_VOLTAGE = map(_FSR_READING, 0, DUE_MAX_ANAL_RESOLUTION, 0, DUE_mV);   // FOR MEGA: DUE_ANAL_RESOLUTION -> MEGA_ANAL_RESOLUTION, _FSR_VCC_mV ->DUE_mV
 
     if ( _FSR_VOLTAGE < _FSR_CALIBR_OFFSET)
     {
@@ -727,7 +728,8 @@ int gripper::setupGripper()
     
     _FSR_READING = analogRead(_FSR_AI_PIN);
 
-    _FSR_VOLTAGE = map(_FSR_READING, 0, DUE_MAX_BITS_RESOL, 0, DUE_mV);   // FOR MEGA: DUE_MAX_BITS_RESOL -> MEGA_ANAL_RESOLUTION, _FSR_VCC_mV ->DUE_mV
+    _FSR_VOLTAGE = map(_FSR_READING, 0, DUE_MAX_ANAL_RESOLUTION, 0, DUE_mV);   // FOR MEGA: DUE_MAX_BITS_RESOL -> MEGA_ANAL_RESOLUTION, _FSR_VCC_mV ->DUE_mV
+    //_FSR_VOLTAGE = (int) (_FSR_READING * (DUE_mV / DUE_MAX_ANAL_RESOLUTION) );
 
     _FSR_CALIBR_OFFSET = _FSR_VOLTAGE;
 

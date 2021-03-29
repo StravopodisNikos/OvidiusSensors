@@ -98,7 +98,7 @@ class force3axis
 
     void setReadyState(HX711 * ptr2hx711, sensors::force_sensor_states * force_current_state, debug_error_type * debug_error);
 
-    HX711 ForceSensorAxis;
+    //HX711 ForceSensorAxis;
 };
 
 /*
