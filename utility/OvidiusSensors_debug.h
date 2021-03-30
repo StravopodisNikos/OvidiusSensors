@@ -16,6 +16,8 @@
 #define SD_FILE_EXISTS      14
 #define BUILD_SENSOR_DIR_FAILED     15
 #define BUILD_SENSOR_PATH_FAILED    16
+#define FILE_NOT_FOUND              17
+#define WRONG_FILE_ID_GIVEN         18
 
 #define CUR_SENSOR_INIT_FAILED      20
 #define CUR_SENSOR_WRONG_MEAS       21

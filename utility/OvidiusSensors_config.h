@@ -46,6 +46,7 @@
 #define MAG_ID  3
 
 // SD card read/write
+#define MAX_DATA_LENGTH         10000 // [31-3-21] NEEDS TESTING - THIS VAUE SHOULD BE BIGGER THAN THE MAX BYTES WRITTEN IN A SESSION FILE
 #define SESSION_DIR_CHAR_LEN    10
 #define SENSOR_DIR_CHAR_LEN     15
 #define LOG_FILES_DIR_CHAR_LEN  20
@@ -72,4 +73,4 @@
 #define ACS_tr_1nF_micros       8
 #define ACS_30A_SENSITIVITY     0.066f // [V/A]
 #define STP_CURRENT_LIMIT       5.0f   // [A]
-#define nCurSmaples             100
+#define nCurSmaples             50

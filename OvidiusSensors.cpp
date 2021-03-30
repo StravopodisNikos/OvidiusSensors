@@ -94,7 +94,6 @@ bool force3axis::measureForceKilos(HX711 * ptr2hx711, float * force_measurements
     //_force_state = FORCE_READY;
     getCurrentState(ptr2hx711, &_force_state, debug_error);                     // seems redundant but enables calling fn outside class and reading current state
 
-    //_force_state = FORCE_READY;    
     if ( _force_state == FORCE_READY )
     {
         (* debug_error) = NO_ERROR;
@@ -555,23 +554,32 @@ void currentSensor::measureCurrent_mA(current_packet * ptr2cur_packet, debug_err
 
 void currentSensor::measureCurrentACS712_A(float & current_measurement, debug_error_type * debug_error)
 {
+    // [30-3-2021] Since delay is used for sampling this function must be used AFTER the syncReadCurrent
+    // and no further delay should be added. It must be doe because sensor is noisy...
+    // [30-3-2021] How should the error characteristics be integrated? Vnoise = 35mV???
+    
+    int _sum_analog_voltage_measurement;
+    int _final_analog_voltage_measurement;
+
     analogReadResolution(DUE_MAX_BITS_RESOL);         // FOR DUE ONLY -> SETS 12 bit resolution
     // Viout(analog) of the module+voltage divider circuit measured in arduino analog pin
-    //for (size_t i = 0; i < nCurSmaples; i++)
-    //{
+
+    _sum_analog_voltage_measurement = 0;
+    for (size_t i = 0; i < nCurSmaples; i++)
+    {
         _analog_voltage_measurement = analogRead(ACS_VOLTAGE_READ_PIN);
-        //_analog_voltage_measurement += _analog_voltage_measurement;
-        //delayMicroseconds(ACS_tr_1nF_micros+2);
-    //}
-    //_analog_voltage_measurement = (int) _analog_voltage_measurement / nCurSmaples;
+        _sum_analog_voltage_measurement = _sum_analog_voltage_measurement + _analog_voltage_measurement;
+        delayMicroseconds(ACS_tr_1nF_micros+2);
+    }
+    _final_analog_voltage_measurement = (int) (_sum_analog_voltage_measurement / nCurSmaples);
     
     // analog -> voltage
     //_voltage_calculated = (_analog_voltage_measurement / DUE_MAX_ANAL_RESOLUTION ) * DUE_mV;
-    _voltage_mapped = map(_analog_voltage_measurement, 0, DUE_MAX_ANAL_RESOLUTION, 0, DUE_mV);
-    _voltage_mapped_V = _voltage_mapped / 1000.0;
+    _voltage_mapped = map(_final_analog_voltage_measurement, 0, DUE_MAX_ANAL_RESOLUTION, 0, DUE_mV);
+    _voltage_mapped_V =  float ( (_voltage_mapped) / 1000.0f) ;
 
     // direct current calculation formula
-    current_measurement = ( _voltage_mapped_V - ACS_VOLTAGE_START ) / ACS_30A_SENSITIVITY;
+    current_measurement = ( _voltage_mapped_V - ACS_VOLTAGE_START) / ACS_30A_SENSITIVITY;
     current_measurement = fabs(current_measurement);
 
     if (current_measurement > STP_CURRENT_LIMIT)
@@ -1044,6 +1052,25 @@ void dataLogger::writeData(float * data2write, int size, unsigned long timestamp
     else
     {
         *debug_error = DATA_WRITE_FAILED;
+    }
+    
+    return;
+}
+
+void dataLogger::readData(char * data_buffer, int & buffer_size, int max_data_length, File *ptr2file, debug_error_type * debug_error)
+{
+    // the file object must be opened before read! 
+    
+    if (*ptr2file)
+    {
+        while(*ptr2file)
+        {
+            buffer_size = ptr2file->readBytes(data_buffer, max_data_length);
+        }
+    }
+    else
+    {
+        *debug_error = FILE_NOT_FOUND;
     }
     
     return;

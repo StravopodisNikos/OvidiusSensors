@@ -235,6 +235,9 @@ namespace tools
       //template <class T>
       //void writeData(T data2write, unsigned long timestamp, unsigned long data_cnt, File *ptr2file, debug_error_type * debug_error);
       void writeData(float * data2write, int size, unsigned long timestamp, unsigned long data_cnt, File *ptr2file, debug_error_type * debug_error);
+
+      void readData(char * data_buffer, int & buffer_size, int max_data_length, File *ptr2file, debug_error_type * debug_error);
+
   };
   
 }
