@@ -1031,7 +1031,8 @@ void dataLogger::closeFile(File *ptr2file, debug_error_type * debug_error)
 //void dataLogger::writeData(T data2write, unsigned long timestamp, unsigned long data_cnt, File *ptr2file, debug_error_type * debug_error)
 void dataLogger::writeData(float * data2write, int size, unsigned long timestamp, unsigned long data_cnt, File *ptr2file, debug_error_type * debug_error)
 {
-    // the file object must be opened before write! file_state was given a value
+    // the file object must be opened before write! Writes the current data given from
+    // sensor to the specified file. file_state was given a value
     // of NO_ERROR OR OPEN_FILE_FAILED. This function is executed only if NO_ERROR
     // was received!
     // [26-3-21] passing pointer to data values and the size of data elements
@@ -1048,6 +1049,61 @@ void dataLogger::writeData(float * data2write, int size, unsigned long timestamp
 
         ptr2file->print(" , "); ptr2file->println(data_cnt,DEC);  // final write cnt and chnage line for next writing
 
+    }
+    else
+    {
+        *debug_error = DATA_WRITE_FAILED;
+    }
+    
+    return;
+}
+
+void dataLogger::writeData2LogArray(float * data2write, int size, unsigned long timestamp, byte data_cnt, real_time_log_struct * ptr2log_struct, debug_error_type * debug_error)
+{
+    // this will be used inside execute5 function but now data will be saved to matrix of predetermined 
+    // max rows instead of sd file.
+    
+    if (data_cnt < MAX_LOG_DATA )
+    {
+        // assign time 
+        ptr2log_struct->timestamps[data_cnt] = timestamp;
+        // assign counter
+        ptr2log_struct->timestamps[data_cnt] = data_cnt;
+        // assign the logged data
+        for (size_t i = 0; i < size; i++)
+        {
+            ptr2log_struct->logged_data[data_cnt][i] = data2write[i];
+        }
+    }
+    else
+    {
+        *debug_error = DATA_WRITE_FAILED;
+    }
+    
+    return;
+}
+
+void dataLogger::finalWriteData( real_time_log_struct * ptr2log_struct, File *ptr2file, debug_error_type * debug_error)
+{
+    // the file object must be opened/closed before/after write! The diff here is that all
+    // values saved in logged_data during task execution are saved in the file
+    // and then cleared. logged_data is a 2D array log_data_max x nDof !
+    // [9-4-21] because sd card is playing tough!
+    
+    if (*debug_error == NO_ERROR)
+    {
+        for (size_t i = 0; i < MAX_LOG_DATA; i++)
+        {
+            ptr2file->print(ptr2log_struct->timestamps[i],DEC);  // first write the time
+            
+            // DATA_VAL(s)
+            for (size_t j = 0; j < TOTAL_ACTIVE_JOINTS; j++)
+            {
+                ptr2file->print(" , "); ptr2file->print(ptr2log_struct->logged_data[i][j],DEC);  // write the data in same row
+            }
+
+            ptr2file->print(" , "); ptr2file->println(ptr2log_struct->data_cnts[i],DEC);  // final write cnt and chnage line for next writing
+        }
     }
     else
     {

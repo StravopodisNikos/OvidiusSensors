@@ -21,6 +21,7 @@
 //#include "Adafruit_Sensor_Calibration_EEPROM.h"
 //#include <Adafruit_AHRS.h>
 //#include <Wire.h>
+#include <utility/OvidiusSensors_config.h>
 #include <Wire.h>
 #include <Adafruit_INA219.h>
 #include <SPI.h>
@@ -205,6 +206,13 @@ namespace tools
 
   };
 
+  struct real_time_log_struct
+  {
+    float logged_data [MAX_LOG_DATA] [TOTAL_ACTIVE_JOINTS];
+    unsigned long timestamps[MAX_LOG_DATA];
+    byte data_cnts[MAX_LOG_DATA];
+  };
+  
   class dataLogger: public String, public File, public SDClass
   {
     private:
@@ -235,6 +243,8 @@ namespace tools
       //template <class T>
       //void writeData(T data2write, unsigned long timestamp, unsigned long data_cnt, File *ptr2file, debug_error_type * debug_error);
       void writeData(float * data2write, int size, unsigned long timestamp, unsigned long data_cnt, File *ptr2file, debug_error_type * debug_error);
+      void writeData2LogArray(float * data2write, int size, unsigned long timestamp, byte data_cnt, real_time_log_struct * ptr2log_struct, debug_error_type * debug_error);
+      void finalWriteData( real_time_log_struct * ptr2log_struct, File *ptr2file, debug_error_type * debug_error);
 
       void readData(char * data_buffer, int & buffer_size, int max_data_length, File *ptr2file, debug_error_type * debug_error);
 
